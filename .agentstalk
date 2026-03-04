@@ -312,3 +312,15 @@ Date: 2026-03-01
 - Next Steps:
   - 如需消除上述审查风险，可在下一轮修复 `ShotCard` 引用解析一致性与 `useUndo` 访问方式，并补对应用例。
 - Risks/Notes: 本轮按用户要求优先完成审查与测试协作，未改动业务逻辑。
+
+### [2026-03-04 07:25:00] p1-features-complete
+- Request/Goal: P1 三个功能全部完成并提交
+- Changes:
+  - `src/store/editorStore.ts`: 新增 importProject（重置 shots+assets）、generateAllShots（按序批量生成，支持进度回调）
+  - `src/components/ShotListPanel.tsx`: 新增导出/导入按钮（Download/Upload图标），批量生成按钮（带进度条）
+  - `src/components/PublishPanel.tsx`: 全新组件，支持5平台文案生成（小红书/抖音/B站/微博/YouTube），有 LLM Key 时走真实 API，否则 mock
+  - `src/components/PreviewPanel.tsx`: 新增"发布文案" Tab 入口
+- Implemented: 两个 commit 已提交（ea921c5 P0, eb967f3 P1）
+- Validation: npm run build 成功，无错误
+- Next Steps: P2 功能（视频版本对比、角色一致性管理、画面风格锁定）
+- Risks/Notes: PublishPanel 预先存在一个版本（392行），已修复其 TypeScript 类型错误
