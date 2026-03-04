@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { callLLMByBackend } from '../../src/services/backendProxy';
 import { LLMService } from '../../src/services/llmService';
+
+vi.mock('../../src/services/backendProxy', () => ({
+  callLLMByBackend: vi.fn()
+}));
 
 const createByteDanceService = () =>
   new LLMService({
@@ -12,7 +17,7 @@ const createByteDanceService = () =>
 describe('LLMService', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
-    vi.unstubAllGlobals();
+    vi.clearAllMocks();
   });
 
   it('API Key 缺失时应直接抛错', async () => {
@@ -27,34 +32,17 @@ describe('LLMService', () => {
   });
 
   it('能解析 JSON 结果并输出结构化分镜', async () => {
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          choices: [{ message: { content: '这是第一轮分析结果' } }]
-        })
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content:
-                  '```json\n{"shots":[{"description":"@小红出场","duration":6,"assetRefs":["小红"]}],"summary":"结构化输出"}\n```'
-              }
-            }
-          ]
-        })
-      });
-
-    vi.stubGlobal('fetch', fetchMock);
+    const backendMock = vi.mocked(callLLMByBackend)
+      .mockResolvedValueOnce('这是第一轮分析结果')
+      .mockResolvedValueOnce(
+        '```json\n{"shots":[{"description":"@小红出场","duration":6,"assetRefs":["小红"]}],"summary":"结构化输出"}\n```'
+      );
 
     const service = createByteDanceService();
     const progressSpy = vi.fn();
     const result = await service.generateFromScript('测试剧本', progressSpy);
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(backendMock).toHaveBeenCalledTimes(2);
     expect(result.summary).toBe('结构化输出');
     expect(result.shots).toHaveLength(1);
     expect(result.shots[0]).toEqual({
@@ -68,28 +56,9 @@ describe('LLMService', () => {
 
   it('当模型返回非 JSON 时会进入备用解析', async () => {
     const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          choices: [{ message: { content: '分析阶段输出' } }]
-        })
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          choices: [
-            {
-              message: {
-                content: '分镜1: 城市夜景开场\n分镜2: 主角进入仓库\n分镜3: 冲突爆发'
-              }
-            }
-          ]
-        })
-      });
-
-    vi.stubGlobal('fetch', fetchMock);
+    vi.mocked(callLLMByBackend)
+      .mockResolvedValueOnce('分析阶段输出')
+      .mockResolvedValueOnce('分镜1: 城市夜景开场\n分镜2: 主角进入仓库\n分镜3: 冲突爆发');
 
     const service = createByteDanceService();
     const result = await service.generateFromScript('测试剧本');

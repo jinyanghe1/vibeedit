@@ -1,8 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useEditorStore } from '../../src/store/editorStore';
 
+type TemporalApi = {
+  undo: () => void;
+  redo: () => void;
+  clear?: () => void;
+  pastStates: unknown[];
+  futureStates: unknown[];
+};
+
+const getTemporal = () =>
+  (useEditorStore as unknown as { temporal: { getState: () => TemporalApi } }).temporal.getState();
+
 describe('Editor Store', () => {
   beforeEach(() => {
+    localStorage.clear();
+
     // Reset store state before each test
     useEditorStore.setState({
       shots: [],
@@ -14,9 +27,16 @@ describe('Editor Store', () => {
         provider: 'bytedance',
         apiKey: '',
         apiUrl: 'https://api.example.com/v1'
+      },
+      llmConfig: {
+        provider: 'bytedance',
+        apiKey: '',
+        apiUrl: 'https://api.example.com/v1',
+        model: 'test-model'
       }
     });
-    localStorage.clear();
+
+    getTemporal().clear?.();
   });
 
   describe('Shots actions', () => {
@@ -153,6 +173,140 @@ describe('Editor Store', () => {
       // Verify localStorage was updated
       const savedConfig = localStorage.getItem('storyboard-editor-config');
       expect(savedConfig).toContain('new-api-key');
+    });
+  });
+
+  describe('P0 feature robustness', () => {
+    it('should persist shots/assets/selection/status to localStorage', () => {
+      const { addShot, addAsset, selectShot, selectVideo } = useEditorStore.getState();
+
+      addAsset('hero', 'data:image/png;base64,hero', 'image');
+      addShot('主角 @hero 出场', 6);
+
+      const shotId = useEditorStore.getState().shots[0].id;
+      useEditorStore.setState({
+        generationStatus: { [shotId]: 'success' }
+      });
+      selectShot(shotId);
+      selectVideo('video-1');
+
+      const raw = localStorage.getItem('storyboard-editor-data');
+      expect(raw).toBeTruthy();
+
+      const parsed = JSON.parse(raw || '{}') as {
+        state?: {
+          shots?: unknown[];
+          assets?: Record<string, unknown>;
+          selectedShotId?: string | null;
+          selectedVideoId?: string | null;
+          generationStatus?: Record<string, string>;
+        };
+      };
+
+      expect(parsed.state?.shots).toHaveLength(1);
+      expect(parsed.state?.assets?.hero).toBeDefined();
+      expect(parsed.state?.selectedShotId).toBe(shotId);
+      expect(parsed.state?.selectedVideoId).toBe('video-1');
+      expect(parsed.state?.generationStatus?.[shotId]).toBe('success');
+    });
+
+    it('should execute generateAllShots in order and skip non-pending shots', async () => {
+      const generateVideoMock = vi.fn().mockResolvedValue(undefined);
+
+      useEditorStore.setState({
+        shots: [
+          {
+            id: 'shot-2',
+            description: 'shot 2',
+            duration: 5,
+            assetRefs: [],
+            videos: [{ id: 'v1', shotId: 'shot-2', url: 'u', prompt: 'p', createdAt: 1 }],
+            order: 1
+          },
+          {
+            id: 'shot-1',
+            description: 'shot 1',
+            duration: 5,
+            assetRefs: [],
+            videos: [],
+            order: 0
+          },
+          {
+            id: 'shot-3',
+            description: 'shot 3',
+            duration: 5,
+            assetRefs: [],
+            videos: [],
+            order: 2
+          }
+        ],
+        generationStatus: {
+          'shot-3': 'generating'
+        },
+        generateVideo: generateVideoMock
+      });
+
+      const progressSpy = vi.fn();
+      await useEditorStore.getState().generateAllShots(progressSpy);
+
+      expect(generateVideoMock).toHaveBeenCalledTimes(1);
+      expect(generateVideoMock).toHaveBeenCalledWith('shot-1');
+      expect(progressSpy).toHaveBeenNthCalledWith(1, 0, 1);
+      expect(progressSpy).toHaveBeenNthCalledWith(2, 1, 1);
+    });
+
+    it('should reset selection and status when importing project', () => {
+      useEditorStore.setState({
+        selectedShotId: 'old-shot',
+        selectedVideoId: 'old-video',
+        generationStatus: { 'old-shot': 'error' }
+      });
+
+      useEditorStore.getState().importProject(
+        [
+          {
+            id: 'new-shot',
+            description: 'imported',
+            duration: 8,
+            assetRefs: [],
+            videos: [],
+            order: 0
+          }
+        ],
+        {
+          role: {
+            id: 'asset-1',
+            name: 'role',
+            type: 'image',
+            url: 'data:image/png;base64,role',
+            createdAt: 1
+          }
+        }
+      );
+
+      const state = useEditorStore.getState();
+      expect(state.shots).toHaveLength(1);
+      expect(state.assets.role).toBeDefined();
+      expect(state.selectedShotId).toBeNull();
+      expect(state.selectedVideoId).toBeNull();
+      expect(state.generationStatus).toEqual({});
+    });
+
+    it('should support undo and redo with temporal history', () => {
+      const { addShot } = useEditorStore.getState();
+      addShot('Shot A', 5);
+      addShot('Shot B', 6);
+
+      const temporal = getTemporal();
+      expect(temporal.pastStates.length).toBeGreaterThan(0);
+
+      temporal.undo();
+      expect(useEditorStore.getState().shots).toHaveLength(1);
+      expect(useEditorStore.getState().shots[0].description).toBe('Shot A');
+
+      temporal.redo();
+      expect(useEditorStore.getState().shots).toHaveLength(2);
+      expect(useEditorStore.getState().shots[1].description).toBe('Shot B');
     });
   });
 });

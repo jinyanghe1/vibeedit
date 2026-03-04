@@ -157,6 +157,26 @@
   - `Ctrl/Cmd + Shift + Z` - 重做
 - [x] 导出 `useUndo` hook 供组件使用
 
+### ✅ Task 12: P1 功能增强（已完成）
+
+#### 12.1 批量视频生成
+- [x] 添加"全部生成"按钮，一键生成所有未生成的分镜
+- [x] 显示批量生成进度条
+- [x] 支持中断和继续
+
+#### 12.2 项目 JSON 导出/导入
+- [x] 导出功能：将 shots 和 assets 导出为 JSON 文件
+- [x] 导入功能：从 JSON 文件导入项目数据
+- [x] 文件名包含日期：`storyboard-YYYY-MM-DD.json`
+
+#### 12.3 多平台发布 Tab
+- [x] 在 PreviewPanel 添加"多平台发布"Tab
+- [x] 支持 5 个平台：Bilibili、抖音、小红书、微博、YouTube
+- [x] AI 生成平台适配的标题、描述、标签
+- [x] 一键复制功能
+- [x] 字数限制提示
+- [x] 合规提示
+
 ## ByteDance API 配置
 
 ### 视频生成

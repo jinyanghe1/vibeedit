@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ShotCard } from '../../src/components/ShotCard';
 import { useEditorStore } from '../../src/store/editorStore';
@@ -74,15 +74,11 @@ describe('ShotCard Component', () => {
   });
 
   it('shows menu and can trigger edit', async () => {
-    render(<ShotCard {...defaultProps} />);
-    
-    // Open menu
-    // The menu button contains MoreVertical icon
-    const menuButton = screen.getByRole('button', { name: '' }); 
-    // Wait, let's find the button by its child SVG or class
-    const buttons = screen.getAllByRole('button');
-    // The first button in the component is the menu button (excluding generate button which is further down)
-    await userEvent.click(buttons[0]);
+    const { container } = render(<ShotCard {...defaultProps} />);
+    const menuIcon = container.querySelector('svg.lucide-ellipsis-vertical');
+    const menuButton = menuIcon?.closest('button') as HTMLButtonElement | null;
+    expect(menuButton).toBeTruthy();
+    await userEvent.click(menuButton as HTMLButtonElement);
     
     // Now menu should be visible
     const editButton = screen.getByText('编辑');
@@ -93,10 +89,11 @@ describe('ShotCard Component', () => {
   });
 
   it('shows menu and can trigger delete', async () => {
-    render(<ShotCard {...defaultProps} />);
-    
-    const buttons = screen.getAllByRole('button');
-    await userEvent.click(buttons[0]); // Open menu
+    const { container } = render(<ShotCard {...defaultProps} />);
+    const menuIcon = container.querySelector('svg.lucide-ellipsis-vertical');
+    const menuButton = menuIcon?.closest('button') as HTMLButtonElement | null;
+    expect(menuButton).toBeTruthy();
+    await userEvent.click(menuButton as HTMLButtonElement);
     
     const deleteButton = screen.getByText('删除');
     await userEvent.click(deleteButton);

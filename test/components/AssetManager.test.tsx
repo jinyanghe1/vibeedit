@@ -14,6 +14,13 @@ describe('AssetManager Component', () => {
     useEditorStore.setState({
       assets: {},
     });
+    class MockFileReader {
+      onload: ((event: ProgressEvent<FileReader>) => void) | null = null;
+      readAsDataURL() {
+        this.onload?.({ target: { result: 'data:image/png;base64,mock' } } as unknown as ProgressEvent<FileReader>);
+      }
+    }
+    vi.stubGlobal('FileReader', MockFileReader);
     vi.clearAllMocks();
   });
 
@@ -53,7 +60,7 @@ describe('AssetManager Component', () => {
     
     // Wait for the add button to become enabled
     const addButton = screen.getByText('添加资产');
-    expect(addButton).not.toBeDisabled();
+    await waitFor(() => expect(addButton).not.toBeDisabled());
     
     // Click add
     await userEvent.click(addButton);
@@ -67,12 +74,10 @@ describe('AssetManager Component', () => {
     expect(screen.queryByText('暂无资产')).not.toBeInTheDocument();
     
     // Now remove the asset
-    const removeButtons = document.querySelectorAll('button > svg.lucide-x');
-    // The first X might be the modal close button, the second might be the preview close (if visible),
-    // let's grab the close button on the asset item.
-    // The remove button has absolute positioning and is a child of the asset container
-    const assetRemoveButton = screen.getByText('@test_asset').nextElementSibling as HTMLButtonElement;
-    await userEvent.click(assetRemoveButton);
+    const assetCard = screen.getByText('@test_asset').parentElement;
+    const assetRemoveButton = assetCard?.querySelector('button');
+    expect(assetRemoveButton).toBeTruthy();
+    await userEvent.click(assetRemoveButton as HTMLButtonElement);
     
     // Verify removal
     expect(useEditorStore.getState().assets['test_asset']).toBeUndefined();
