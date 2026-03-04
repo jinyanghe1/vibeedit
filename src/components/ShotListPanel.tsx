@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useEditorStore } from '../store/editorStore';
 import { ShotCard } from './ShotCard';
 import { ShotEditor } from './ShotEditor';
@@ -6,7 +6,8 @@ import { AssetManager } from './AssetManager';
 import { Settings } from './Settings';
 import { ScriptToShots } from './ScriptToShots';
 import { WebNovelInspiration } from './WebNovelInspiration';
-import { Plus, Clapperboard, FileText, List, Lightbulb } from 'lucide-react';
+import { Plus, Clapperboard, FileText, List, Lightbulb, Wand2, Download, Upload, Loader2 } from 'lucide-react';
+import type { Shot, Asset } from '../types';
 import {
   DndContext,
   closestCenter,
@@ -29,8 +30,10 @@ export function ShotListPanel() {
   const [activeTab, setActiveTab] = useState<TabType>('shots');
   const [isAdding, setIsAdding] = useState(false);
   const [editingShotId, setEditingShotId] = useState<string | null>(null);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const importRef = useRef<HTMLInputElement>(null);
   
-  const { shots, selectShot, selectedShotId, reorderShots } = useEditorStore();
+  const { shots, assets, selectShot, selectedShotId, reorderShots, generateAllShots, importProject } = useEditorStore();
 
   // 按order排序
   const sortedShots = [...shots].sort((a, b) => a.order - b.order);
@@ -56,6 +59,47 @@ export function ShotListPanel() {
     }
   };
 
+  // 批量生成
+  const handleGenerateAll = async () => {
+    await generateAllShots((current, total) => {
+      setBatchProgress({ current, total });
+    });
+    setBatchProgress(null);
+  };
+
+  // 导出项目
+  const handleExport = () => {
+    const data = { shots, assets };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `storyboard-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // 导入项目
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string) as { shots: Shot[]; assets: Record<string, Asset> };
+        if (data.shots && data.assets) {
+          importProject(data.shots, data.assets);
+        } else {
+          alert('无效的项目文件格式');
+        }
+      } catch {
+        alert('文件解析失败，请检查格式');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   const handleSelectShot = (shotId: string) => {
     selectShot(shotId);
   };
@@ -70,6 +114,8 @@ export function ShotListPanel() {
     setEditingShotId(null);
   };
 
+  const unGeneratedCount = sortedShots.filter(s => s.videos.length === 0).length;
+
   return (
     <div className="h-full flex flex-col bg-gray-900 border-r border-gray-800">
       {/* 头部 */}
@@ -79,6 +125,22 @@ export function ShotListPanel() {
           <h1 className="text-lg font-semibold text-white">分镜工作台</h1>
         </div>
         <div className="flex items-center gap-2">
+          {/* 导出/导入 */}
+          <button
+            onClick={handleExport}
+            title="导出项目 JSON"
+            className="p-2 hover:bg-gray-700 rounded-lg transition-colors text-gray-400 hover:text-white"
+          >
+            <Download size={16} />
+          </button>
+          <button
+            onClick={() => importRef.current?.click()}
+            title="导入项目 JSON"
+            className="p-2 hover:bg-gray-700 rounded-lg transition-colors text-gray-400 hover:text-white"
+          >
+            <Upload size={16} />
+          </button>
+          <input ref={importRef} type="file" accept=".json" className="hidden" onChange={handleImportFile} />
           <Settings />
           <AssetManager />
         </div>
@@ -178,21 +240,49 @@ export function ShotListPanel() {
             )}
           </div>
 
-          {/* 底部: 添加分镜 */}
-          <div className="p-4 border-t border-gray-800">
+          {/* 底部: 添加分镜 + 批量生成 */}
+          <div className="p-4 border-t border-gray-800 space-y-2">
+            {/* 批量生成进度条 */}
+            {batchProgress && (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-gray-400">
+                  <span>批量生成中...</span>
+                  <span>{batchProgress.current}/{batchProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-700 rounded-full h-1.5">
+                  <div
+                    className="bg-purple-500 h-1.5 rounded-full transition-all"
+                    style={{ width: `${batchProgress.total > 0 ? (batchProgress.current / batchProgress.total) * 100 : 0}%` }}
+                  />
+                </div>
+              </div>
+            )}
             {isAdding ? (
               <ShotEditor 
                 editShotId={editingShotId} 
                 onClose={handleCloseEditor} 
               />
             ) : (
-              <button
-                onClick={() => setIsAdding(true)}
-                className="w-full flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-              >
-                <Plus size={20} />
-                添加分镜
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setIsAdding(true)}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                >
+                  <Plus size={20} />
+                  添加分镜
+                </button>
+                {unGeneratedCount > 0 && (
+                  <button
+                    onClick={handleGenerateAll}
+                    disabled={!!batchProgress}
+                    title={`批量生成 ${unGeneratedCount} 个未生成分镜`}
+                    className="flex items-center gap-1.5 px-3 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
+                  >
+                    {batchProgress ? <Loader2 size={16} className="animate-spin" /> : <Wand2 size={16} />}
+                    全部生成({unGeneratedCount})
+                  </button>
+                )}
+              </div>
             )}
           </div>
 

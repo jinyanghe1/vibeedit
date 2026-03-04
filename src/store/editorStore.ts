@@ -107,6 +107,8 @@ interface EditorStore {
   getShotById: (id: string) => Shot | undefined;
   getSelectedShot: () => Shot | undefined;
   getSelectedVideo: () => Video | undefined;
+  importProject: (shots: Shot[], assets: Record<string, Asset>) => void;
+  generateAllShots: (onProgress?: (current: number, total: number) => void) => Promise<void>;
 }
 
 const generateId = () => Math.random().toString(36).substring(2, 15);
@@ -423,6 +425,25 @@ export const useEditorStore = create<EditorStore>()(
       if (video) return video;
     }
     return undefined;
+  },
+
+  importProject: (shots: Shot[], assets: Record<string, Asset>) => {
+    set({ shots, assets, selectedShotId: null, selectedVideoId: null, generationStatus: {} });
+  },
+
+  generateAllShots: async (onProgress?: (current: number, total: number) => void) => {
+    const { shots, generationStatus } = get();
+    const sortedShots = [...shots].sort((a, b) => a.order - b.order);
+    const pending = sortedShots.filter(s => {
+      const status = generationStatus[s.id] || 'idle';
+      return status !== 'generating' && s.videos.length === 0;
+    });
+    const total = pending.length;
+    for (let i = 0; i < pending.length; i++) {
+      onProgress?.(i, total);
+      await get().generateVideo(pending[i].id);
+    }
+    onProgress?.(total, total);
   }
 }),
       {

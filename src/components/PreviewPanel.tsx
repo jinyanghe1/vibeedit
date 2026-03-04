@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { VideoPreview } from './VideoPreview';
 import { AutoEdit } from './AutoEdit';
-import { Play, Film } from 'lucide-react';
+import { PublishPanel } from './PublishPanel';
+import { Play, Film, Share2 } from 'lucide-react';
 
-type PreviewMode = 'single' | 'auto-edit';
+type PreviewMode = 'single' | 'auto-edit' | 'publish';
 
 export function PreviewPanel() {
   const [mode, setMode] = useState<PreviewMode>('single');
@@ -34,14 +35,27 @@ export function PreviewPanel() {
           <Film size={16} />
           一键剪辑
         </button>
+        <button
+          onClick={() => setMode('publish')}
+          className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors border-b-2 ${
+            mode === 'publish'
+              ? 'text-green-400 border-green-500 bg-green-500/10'
+              : 'text-gray-400 border-transparent hover:text-gray-300 hover:bg-gray-800/50'
+          }`}
+        >
+          <Share2 size={16} />
+          多平台发布
+        </button>
       </div>
 
       {/* 预览内容 */}
       <div className="flex-1 overflow-hidden">
         {mode === 'single' ? (
           <VideoPreview />
-        ) : (
+        ) : mode === 'auto-edit' ? (
           <AutoEdit />
+        ) : (
+          <PublishPanel />
         )}
       </div>
     </div>
