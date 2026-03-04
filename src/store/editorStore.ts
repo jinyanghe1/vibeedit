@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+import { create, useStore, type StoreApi } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { temporal } from 'zundo';
 import type { 
@@ -9,7 +9,8 @@ import type {
   ApiConfig, 
   LLMConfig, 
   ScriptGenerationResult,
-  WebNovelInspirationResult
+  WebNovelInspirationResult,
+  ShotTag
 } from '../types';
 import { ByteDanceLLMService, generateVideoWithByteDance } from '../services/bytedanceService';
 import { LLMService } from '../services/llmService';
@@ -86,13 +87,14 @@ interface EditorStore {
   apiConfig: ApiConfig;
   llmConfig: LLMConfig;
   
-  addShot: (description: string, duration: number) => void;
+  addShot: (description: string, duration: number, tags?: ShotTag[]) => void;
   addShots: (shots: Array<{ description: string; duration: number; assetRefs?: string[] }>) => void;
   updateShot: (id: string, updates: Partial<Shot>) => void;
   deleteShot: (id: string) => void;
   reorderShots: (shotIds: string[]) => void;
-  addAsset: (name: string, url: string, type?: 'image' | 'video') => void;
+  addAsset: (name: string, url: string, type?: 'image' | 'video', description?: string) => void;
   removeAsset: (name: string) => void;
+  updateAsset: (name: string, updates: Partial<Asset>) => void;
   generateVideo: (shotId: string) => Promise<void>;
   selectShot: (shotId: string | null) => void;
   selectVideo: (videoId: string | null) => void;
@@ -135,12 +137,14 @@ const mockVideoGenerate = async (
   
   assetRefs.forEach(ref => {
     if (assets[ref]) {
-      usedAssets.push(`${ref}(参考图)`);
+      // Inject character description if available
+      const charDesc = assets[ref].description;
+      usedAssets.push(charDesc ? `${ref}(${charDesc})` : `${ref}(参考图)`);
     }
   });
   
   if (usedAssets.length > 0) {
-    prompt = `${description} | 使用资产: ${usedAssets.join(', ')}`;
+    prompt = `${description} | 角色设定: ${usedAssets.join(', ')}`;
   }
   
   return {
@@ -190,7 +194,7 @@ export const useEditorStore = create<EditorStore>()(
   apiConfig: loadApiConfig(),
   llmConfig: loadLLMConfig(),
 
-  addShot: (description: string, duration: number) => {
+  addShot: (description: string, duration: number, tags?: ShotTag[]) => {
     const { shots } = get();
     const assetRefs = parseAssetRefs(description);
     
@@ -200,7 +204,8 @@ export const useEditorStore = create<EditorStore>()(
       duration,
       assetRefs,
       videos: [],
-      order: shots.length
+      order: shots.length,
+      tags
     };
     
     set({ shots: [...shots, newShot] });
@@ -260,13 +265,14 @@ export const useEditorStore = create<EditorStore>()(
     set({ shots: reordered });
   },
 
-  addAsset: (name: string, url: string, type: 'image' | 'video' = 'image') => {
+  addAsset: (name: string, url: string, type: 'image' | 'video' = 'image', description?: string) => {
     const { assets } = get();
     const newAsset: Asset = {
       id: generateId(),
       name,
       type,
       url,
+      description,
       createdAt: Date.now()
     };
     set({ assets: { ...assets, [name]: newAsset } });
@@ -276,6 +282,13 @@ export const useEditorStore = create<EditorStore>()(
     const { assets } = get();
     const { [name]: _, ...rest } = assets;
     set({ assets: rest });
+  },
+
+  updateAsset: (name: string, updates: Partial<Asset>) => {
+    const { assets } = get();
+    if (assets[name]) {
+      set({ assets: { ...assets, [name]: { ...assets[name], ...updates } } });
+    }
   },
 
   generateVideo: async (shotId: string) => {
@@ -480,12 +493,16 @@ type TemporalState = {
 
 // Undo/Redo hook — uses zundo temporal store
 export const useUndo = () => {
-  const store = useEditorStore();
-  const temporalStore = (store as unknown as { temporal: TemporalState }).temporal;
+  const temporalStore = (useEditorStore as unknown as { temporal: StoreApi<TemporalState> }).temporal;
+  const undo = useStore(temporalStore, (state) => state.undo);
+  const redo = useStore(temporalStore, (state) => state.redo);
+  const canUndo = useStore(temporalStore, (state) => state.pastStates.length > 0);
+  const canRedo = useStore(temporalStore, (state) => state.futureStates.length > 0);
+
   return {
-    undo: temporalStore.undo,
-    redo: temporalStore.redo,
-    canUndo: temporalStore.pastStates.length > 0,
-    canRedo: temporalStore.futureStates.length > 0
+    undo,
+    redo,
+    canUndo,
+    canRedo
   };
 };

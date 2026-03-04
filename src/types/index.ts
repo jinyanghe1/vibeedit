@@ -4,6 +4,7 @@ export interface Asset {
   name: string;
   type: 'image' | 'video';
   url: string;
+  description?: string; // 角色/资产外貌描述，注入视频生成 Prompt
   createdAt: number;
 }
 
@@ -17,6 +18,10 @@ export interface Video {
   thumbnail?: string;
 }
 
+// 分镜预设标签
+export const SHOT_TAGS = ['动作', '对话', '特写', '全景', '过场', '转场', '情感', '战斗'] as const;
+export type ShotTag = typeof SHOT_TAGS[number];
+
 // 分镜类型
 export interface Shot {
   id: string;
@@ -25,6 +30,7 @@ export interface Shot {
   assetRefs: string[];
   videos: Video[];
   order: number;
+  tags?: ShotTag[]; // 分镜分类标签
 }
 
 // 生成状态

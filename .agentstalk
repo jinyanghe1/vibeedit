@@ -267,6 +267,19 @@ Date: 2026-03-01
 - Next Steps: P1 已完成，可进入后续功能开发
 - Risks/Notes: 发布功能在配置LLM时调用真实API，未配置时使用模拟数据
 
+### [2026-03-04 15:30:00] p1-features-verified
+- Request/Goal: 用户再次调用 agentstalk 确认 P1 任务，验证功能完整性
+- Changes: 无代码变更，仅验证确认
+- Implemented: 
+  - ✅ 批量视频生成: `generateAllShots` action + UI 进度条
+  - ✅ 项目导出/导入: JSON 文件导出/导入，支持 shots 和 assets
+  - ✅ 多平台发布: PreviewPanel 新增发布 Tab，支持 5 个平台
+- Validation: 
+  - `npm run build` ✅ 构建成功 (1753 modules)
+  - 代码检查确认所有 P1 功能已正确实现
+- Next Steps: P1 已完成，可进入 P2 功能开发或项目收尾
+- Risks/Notes: 无
+
 ### [2026-03-04 15:12:35 +0800] review-test-collab-start
 - Request/Goal: 用户要求“代码审查 + 基于功能清单补充测试”，并确认当前工作区改动作为基线保留。
 - Changes: 本阶段仅进行基线确认与审查/测试计划，不修改业务代码。
@@ -324,3 +337,65 @@ Date: 2026-03-01
 - Validation: npm run build 成功，无错误
 - Next Steps: P2 功能（视频版本对比、角色一致性管理、画面风格锁定）
 - Risks/Notes: PublishPanel 预先存在一个版本（392行），已修复其 TypeScript 类型错误
+
+### [2026-03-04 15:53:34 +0800] pre-edit-review-and-tests-round2
+- Request/Goal: 第二轮代码审查与测试补强，面向 Task 12（批量生成/导入导出/发布Tab）提升覆盖与鲁棒性。
+- Changes: 计划修改 `src/components/ShotCard.tsx`、`src/store/editorStore.ts`；新增测试 `test/components/PreviewPanel.test.tsx`、`test/components/PublishPanel.test.tsx`，并补充必要断言。
+- Implemented: 已完成历史同步与功能清单核对，确认当前测试对 P1 UI 入口覆盖不足。
+- Validation: 待新增测试并执行全量 `npx vitest run`。
+- Next Steps: 1) 落地两处业务修复；2) 新增 P1 组件测试；3) 回归并更新审查结论。
+- Risks/Notes: 保持用户既有基线改动，不做回退；若发现新冲突将即时记录。
+
+### [2026-03-04 07:51:00] p2-features-start
+- Request/Goal: 实现 P2 四个功能：1) 角色一致性管理 2) 分镜时间轴 3) 分镜标签分类 4) 视频版本 A/B 对比
+- Changes: 计划修改 src/types/index.ts（Shot.tags, Asset.description）、src/components/AssetManager.tsx（描述编辑）、src/components/ShotEditor.tsx（标签选择）、src/components/ShotCard.tsx（标签显示）、src/components/ShotListPanel.tsx（时间轴）、src/components/VideoPreview.tsx（A/B 对比）、src/store/editorStore.ts（generateVideo 注入角色描述）
+- Implemented: 开始执行
+- Validation: 待 npm run build 验证
+- Risks/Notes: Asset.description 是新增可选字段，向后兼容；Shot.tags 同样可选
+
+### [2026-03-04 15:55:13 +0800] blocker-unexpected-baseline-change
+- Request/Goal: 完成第二轮全量测试回归。
+- Changes: 未执行新的业务/测试编辑；在回归阶段发现基线异常。
+- Implemented: 定位到 `npx vitest run` 失败源为 `src/components/AssetManager.tsx` 语法错误（Unexpected "}" at line 389）。
+- Validation:
+  - `npx vitest run` -> 1 suite failed（AssetManager transform error）。
+  - `git status --short` 显示存在本轮未计划内的源码变更：`src/components/AssetManager.tsx`、`src/types/index.ts` 等。
+- Next Steps: 需先与用户确认这些变更是否作为新的基线保留并允许修复后再继续。
+- Risks/Notes: 按协作约束，发现非预期改动后暂停并请求用户指示。
+
+### [2026-03-04 16:00:00] blocker-resolved
+- Request/Goal: 修复代码重复导致的语法错误
+- Changes: 
+  - `src/components/AssetManager.tsx`: 删除第225行后重复的内容
+  - `src/components/ShotCard.tsx`: 删除第226行后重复的内容
+  - `src/components/ShotEditor.tsx`: 删除第176行后重复的内容
+- Implemented: 三个文件都存在内容重复（函数/导入定义重复两次），已修复
+- Validation: `npm run build` ✅ 构建成功
+- Next Steps: 继续 P2 功能开发
+- Risks/Notes: 重复内容可能是之前合并或编辑时产生的
+
+### [2026-03-05 P2-features-session] p2-features-start
+- Request/Goal: 实现 P2 功能：角色一致性管理、分镜标签、时间轴视图
+- Agent: Copilot CLI (Claude Sonnet 4.6)
+- Reading prior context and continuing from prior agent's work
+
+### [2026-03-05 P2-features-session] p2-features-complete
+- Request/Goal: 实现 P2 功能（P2.1、P2.3、P2.2）
+- Changes:
+  - `src/types/index.ts`: (already committed) `Asset.description?`, `Shot.tags?`, `SHOT_TAGS`, `ShotTag` type
+  - `src/components/AssetManager.tsx`: 添加角色描述字段（新增时输入 + 列表中内联编辑）
+  - `src/store/editorStore.ts`: `addAsset` 接受 `description?`; 新增 `updateAsset`; `generateVideo` mock 将角色描述注入 prompt; `addShot` 接受 `tags?`; 导入 `ShotTag` 类型
+  - `src/components/ShotEditor.tsx`: 添加分镜标签多选（SHOT_TAGS，彩色按钮）
+  - `src/components/ShotCard.tsx`: 显示标签彩色 chips; 资产 ref 上显示 ✦ 表示有描述
+  - `src/components/ShotTimeline.tsx`: 新建分镜时间轴组件（按 duration 比例横向块，颜色=首标签）
+  - `src/components/ShotListPanel.tsx`: 引入并渲染 ShotTimeline
+- Validation: `npm run build` ✅ 构建成功（tsc + vite）
+- Next Steps: P2.4 A/B 视频对比，或 P3 功能
+
+### [2026-03-04 16:05:00] p2-features-start
+- Request/Goal: 实现 P2 四个功能：1) 角色一致性管理 2) 分镜时间轴 3) 分镜标签分类 4) 视频版本 A/B 对比
+- Changes: 计划修改 src/components/ShotEditor.tsx（标签选择）、src/components/ShotCard.tsx（标签显示）、src/components/ShotListPanel.tsx（时间轴）、src/components/VideoPreview.tsx（A/B 对比）、src/store/editorStore.ts（generateVideo 注入角色描述）
+- Implemented: 开始执行，角色一致性管理已具备（AssetManager 支持描述编辑）
+- Validation: 待 npm run build 验证
+- Next Steps: 1) 分镜标签分类 UI；2) 时间轴；3) A/B 对比
+- Risks/Notes: Asset.description 和 Shot.tags 类型已存在

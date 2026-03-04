@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "yahoo-finance": {
+      "command": "npx",
+      "args": ["-y", "yahoo-finance-mcp"],
+      "env": {
+        "HTTP_PROXY": "http://127.0.0.1:7897",
+        "HTTPS_PROXY": "http://127.0.0.1:7897"
+      }
+    },
+    "realtime-stock-cn": {
+      "command": "uvx",
+      "args": ["real-time-stock-mcp-service"],
+      "env": {
+        "HTTP_PROXY": "http://127.0.0.1:7897",
+        "HTTPS_PROXY": "http://127.0.0.1:7897"
+      }
+    },
+    "alpha-vantage": {
+      "command": "npx",
+      "args": ["-y", "@berlinbra/alpha-vantage-mcp"],
+      "env": {
+        "ALPHA_VANTAGE_API_KEY": "YOUR_API_KEY_HERE",
+        "HTTP_PROXY": "http://127.0.0.1:7897",
+        "HTTPS_PROXY": "http://127.0.0.1:7897"
+      }
+    }
+  }
+}

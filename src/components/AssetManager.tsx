@@ -1,14 +1,17 @@
 import { useState, useRef } from 'react';
 import { useEditorStore } from '../store/editorStore';
-import { ImagePlus, X, Upload, User } from 'lucide-react';
+import { ImagePlus, X, Upload, User, Edit2, Check } from 'lucide-react';
 
 export function AssetManager() {
   const [isOpen, setIsOpen] = useState(false);
   const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
+  const [editingDesc, setEditingDesc] = useState<string | null>(null); // assetName being edited
+  const [editDescValue, setEditDescValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const { assets, addAsset, removeAsset } = useEditorStore();
+  const { assets, addAsset, removeAsset, updateAsset } = useEditorStore();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -26,8 +29,9 @@ export function AssetManager() {
 
   const handleAddAsset = () => {
     if (name.trim() && previewUrl) {
-      addAsset(name.trim(), previewUrl);
+      addAsset(name.trim(), previewUrl, 'image', description.trim() || undefined);
       setName('');
+      setDescription('');
       setPreviewUrl('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -37,6 +41,11 @@ export function AssetManager() {
 
   const handleRemoveAsset = (assetName: string) => {
     removeAsset(assetName);
+  };
+
+  const handleSaveDesc = (assetName: string) => {
+    updateAsset(assetName, { description: editDescValue.trim() || undefined });
+    setEditingDesc(null);
   };
 
   return (
@@ -68,7 +77,7 @@ export function AssetManager() {
             <div className="bg-gray-700/50 rounded-lg p-4 mb-6">
               <h3 className="text-sm font-medium text-gray-300 mb-3">添加新资产</h3>
               
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <div>
                   <label className="block text-sm text-gray-400 mb-1">资产名称</label>
                   <input
@@ -79,8 +88,19 @@ export function AssetManager() {
                     className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    在分镜描述中使用 @{name} 或 {'{name}'} 引用此资产
+                    在分镜描述中使用 @{name || 'name'} 引用此资产
                   </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">角色描述 <span className="text-gray-600">（可选，自动注入生成 Prompt）</span></label>
+                  <input
+                    type="text"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="例如: 长发女孩，红色汉服，古典气质"
+                    className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
+                  />
                 </div>
 
                 <div>
@@ -145,23 +165,51 @@ export function AssetManager() {
                   <p>暂无资产</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-3">
                   {Object.values(assets).map((asset) => (
                     <div
                       key={asset.id}
-                      className="relative group bg-gray-700/30 rounded-lg p-3"
+                      className="flex gap-3 bg-gray-700/30 rounded-lg p-3 group"
                     >
                       <img
                         src={asset.url}
                         alt={asset.name}
-                        className="w-full aspect-square object-cover rounded-lg mb-2"
+                        className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
                       />
-                      <p className="text-sm text-white truncate">@{asset.name}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white">@{asset.name}</p>
+                        {editingDesc === asset.name ? (
+                          <div className="flex gap-1 mt-1">
+                            <input
+                              autoFocus
+                              value={editDescValue}
+                              onChange={e => setEditDescValue(e.target.value)}
+                              onKeyDown={e => { if (e.key === 'Enter') handleSaveDesc(asset.name); if (e.key === 'Escape') setEditingDesc(null); }}
+                              placeholder="角色描述…"
+                              className="flex-1 px-2 py-1 text-xs bg-gray-700 border border-blue-500 rounded text-white focus:outline-none"
+                            />
+                            <button onClick={() => handleSaveDesc(asset.name)} className="p-1 text-green-400 hover:text-green-300"><Check size={14} /></button>
+                            <button onClick={() => setEditingDesc(null)} className="p-1 text-gray-400 hover:text-gray-300"><X size={14} /></button>
+                          </div>
+                        ) : (
+                          <div
+                            className="flex items-center gap-1 mt-1 cursor-pointer"
+                            onClick={() => { setEditingDesc(asset.name); setEditDescValue(asset.description || ''); }}
+                          >
+                            {asset.description ? (
+                              <p className="text-xs text-blue-300 truncate">{asset.description}</p>
+                            ) : (
+                              <p className="text-xs text-gray-600 italic">+ 添加角色描述</p>
+                            )}
+                            <Edit2 size={11} className="text-gray-600 opacity-0 group-hover:opacity-100 flex-shrink-0" />
+                          </div>
+                        )}
+                      </div>
                       <button
                         onClick={() => handleRemoveAsset(asset.name)}
-                        className="absolute top-1 right-1 p-1 bg-red-500/80 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="p-1 text-gray-600 hover:text-red-400 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
                       >
-                        <X size={14} />
+                        <X size={16} />
                       </button>
                     </div>
                   ))}

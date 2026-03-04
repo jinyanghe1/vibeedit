@@ -40,6 +40,13 @@ describe('ShotCard Component', () => {
           type: 'image',
           url: 'http://example.com/sun.jpg',
           createdAt: Date.now()
+        },
+        小红: {
+          id: 'asset-2',
+          name: '小红',
+          type: 'image',
+          url: 'http://example.com/xiaohong.jpg',
+          createdAt: Date.now()
         }
       },
       generationStatus: {},
@@ -71,6 +78,20 @@ describe('ShotCard Component', () => {
     await userEvent.click(descriptionText);
     
     expect(defaultProps.onSelect).toHaveBeenCalledTimes(1);
+  });
+
+  it('highlights chinese asset refs in description', () => {
+    const chineseShot: Shot = {
+      ...mockShot,
+      description: '镜头切到 @小红，主角微笑',
+      assetRefs: ['小红']
+    };
+
+    render(<ShotCard {...defaultProps} shot={chineseShot} />);
+
+    const refs = screen.getAllByText('@小红');
+    expect(refs.length).toBeGreaterThan(0);
+    expect(refs.some((el) => el.className.includes('text-blue-300'))).toBe(true);
   });
 
   it('shows menu and can trigger edit', async () => {

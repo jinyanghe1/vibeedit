@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { useEditorStore } from '../../src/store/editorStore';
+import { act, renderHook } from '@testing-library/react';
+import { useEditorStore, useUndo } from '../../src/store/editorStore';
 
 type TemporalApi = {
   undo: () => void;
@@ -307,6 +308,23 @@ describe('Editor Store', () => {
       temporal.redo();
       expect(useEditorStore.getState().shots).toHaveLength(2);
       expect(useEditorStore.getState().shots[1].description).toBe('Shot B');
+    });
+
+    it('useUndo hook should react to undo/redo availability', () => {
+      const { result } = renderHook(() => useUndo());
+      expect(result.current.canUndo).toBe(false);
+      expect(result.current.canRedo).toBe(false);
+
+      act(() => {
+        useEditorStore.getState().addShot('Shot A', 5);
+      });
+      expect(result.current.canUndo).toBe(true);
+      expect(result.current.canRedo).toBe(false);
+
+      act(() => {
+        result.current.undo();
+      });
+      expect(result.current.canRedo).toBe(true);
     });
   });
 });

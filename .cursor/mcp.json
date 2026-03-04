@@ -1,0 +1,32 @@
+{
+  "mcpServers": {
+    "yahoo-finance": {
+      "command": "npx",
+      "args": ["-y", "yahoo-finance-mcp"],
+      "description": "Yahoo Finance MCP - 全球股票数据，无需API Key",
+      "env": {
+        "HTTP_PROXY": "http://127.0.0.1:7897",
+        "HTTPS_PROXY": "http://127.0.0.1:7897"
+      }
+    },
+    "realtime-stock-cn": {
+      "command": "uvx",
+      "args": ["real-time-stock-mcp-service"],
+      "description": "实时股票分析MCP - 中文A股/港股/美股，东方财富数据源，完全免费",
+      "env": {
+        "HTTP_PROXY": "http://127.0.0.1:7897",
+        "HTTPS_PROXY": "http://127.0.0.1:7897"
+      }
+    },
+    "alpha-vantage": {
+      "command": "npx",
+      "args": ["-y", "@berlinbra/alpha-vantage-mcp"],
+      "description": "Alpha Vantage MCP - 技术分析指标，免费版25次/天",
+      "env": {
+        "ALPHA_VANTAGE_API_KEY": "YOUR_API_KEY_HERE",
+        "HTTP_PROXY": "http://127.0.0.1:7897",
+        "HTTPS_PROXY": "http://127.0.0.1:7897"
+      }
+    }
+  }
+}

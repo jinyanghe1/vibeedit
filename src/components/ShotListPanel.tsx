@@ -6,6 +6,7 @@ import { AssetManager } from './AssetManager';
 import { Settings } from './Settings';
 import { ScriptToShots } from './ScriptToShots';
 import { WebNovelInspiration } from './WebNovelInspiration';
+import { ShotTimeline } from './ShotTimeline';
 import { Plus, Clapperboard, FileText, List, Lightbulb, Wand2, Download, Upload, Loader2 } from 'lucide-react';
 import type { Shot, Asset } from '../types';
 import {
@@ -287,9 +288,12 @@ export function ShotListPanel() {
           </div>
 
           {/* 资产使用提示 */}
-          <div className="px-4 pb-4 text-xs text-gray-500">
+          <div className="px-4 pb-2 text-xs text-gray-500">
             <p>💡 提示: 在描述中使用 @资产名 引用已导入的图片资产</p>
           </div>
+
+          {/* 分镜时间轴 */}
+          <ShotTimeline />
         </>
       )}
     </div>
