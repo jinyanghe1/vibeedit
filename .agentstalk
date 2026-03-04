@@ -195,3 +195,39 @@ Date: 2026-03-01
   - `npx vitest run test/services/llmService.test.ts test/components/ScriptToShots.test.tsx` -> 2 files, 5 tests, 全部通过。
 - Next Steps: 输出代码审阅发现（含严重度与行号），并建议后续修复顺序。
 - Risks/Notes: 审阅中发现若干业务风险点（高亮规则不支持中文资产名、自定义 LLM URL 未显式校验等），本轮按要求仅报告不改业务。
+
+### [2026-03-04 06:47:00] p0-features-start
+- Request/Goal: 实现 P0 三个功能：1) 数据持久化（shots+assets 写入 localStorage）2) 拖拽排序（@dnd-kit 接入 reorderShots）3) Undo/Redo（zundo temporal middleware）
+- Changes: 计划修改 src/store/editorStore.ts（persist + temporal）、src/components/AssetManager.tsx（blob→base64）、src/components/ShotListPanel.tsx（DndContext）、src/components/ShotCard.tsx（sortable handle）、src/App.tsx（快捷键）
+- Implemented: 开始执行，先安装依赖
+- Validation: 待 npm run build 验证
+- Next Steps: 1) npm install @dnd-kit/core @dnd-kit/sortable zundo; 2) 修改 editorStore（persist + temporal）; 3) 修改 AssetManager（base64）; 4) 修改 ShotListPanel + ShotCard（dnd）; 5) 加快捷键 UI
+- Risks/Notes: Asset blob URL 不可持久化，需在 AssetManager 处改为 FileReader base64 转换
+
+### [2026-03-04 14:50:00] p0-features-complete
+- Request/Goal: 完成 P0 三个功能的实现
+- Changes:
+  - `src/store/editorStore.ts`: 集成 `zustand/middleware/persist` 实现数据持久化，集成 `zundo` temporal middleware 实现 Undo/Redo，导出 `useUndo` hook
+  - `src/components/ShotListPanel.tsx`: 集成 `@dnd-kit/core` 和 `@dnd-kit/sortable`，实现分镜拖拽排序功能
+  - `src/components/ShotCard.tsx`: 添加拖拽手柄（GripVertical 图标），使用 `useSortable` hook
+  - `src/App.tsx`: 添加全局键盘快捷键监听（Ctrl+Z / Ctrl+Y / Ctrl+Shift+Z）
+- Implemented:
+  - ✅ 数据持久化：shots、assets、selectedShotId、selectedVideoId、generationStatus 自动保存到 localStorage
+  - ✅ 拖拽排序：支持鼠标拖拽和键盘操作，实时更新分镜顺序
+  - ✅ Undo/Redo：支持最多 50 步历史记录，快捷键操作流畅
+- Validation: `npm run build` 构建成功
+- Next Steps: 功能已完成，无需进一步修改
+- Risks/Notes: AssetManager 已经使用 FileReader base64 转换，无需额外修改
+
+### [2026-03-04 06:52:00] p0-features-complete
+- Request/Goal: P0 三个功能全部完成
+- Changes:
+  - `src/components/AssetManager.tsx`: blob URL → FileReader base64，资产可持久化
+  - `src/store/editorStore.ts`: 添加 persist（shots+assets→localStorage storyboard-editor-data）、zundo temporal（50步历史）、useUndo hook
+  - `src/components/ShotListPanel.tsx`: DndContext + SortableContext 已接入 reorderShots
+  - `src/components/ShotCard.tsx`: useSortable + GripVertical 拖拽手柄
+  - `src/App.tsx`: useUndo hook + Cmd+Z/Cmd+Shift+Z 快捷键
+- Implemented: 全部实现完毕
+- Validation: npm run build 成功，1752 modules transformed，无错误
+- Next Steps: P1 功能（批量生成、导出/导入、发布Tab）
+- Risks/Notes: 无

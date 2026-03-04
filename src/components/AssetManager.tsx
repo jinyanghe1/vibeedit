@@ -13,8 +13,11 @@ export function AssetManager() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setPreviewUrl(url);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setPreviewUrl(ev.target?.result as string);
+      };
+      reader.readAsDataURL(file);
       if (!name) {
         setName(file.name.replace(/\.[^/.]+$/, ''));
       }

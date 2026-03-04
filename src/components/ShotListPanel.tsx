@@ -7,6 +7,21 @@ import { Settings } from './Settings';
 import { ScriptToShots } from './ScriptToShots';
 import { WebNovelInspiration } from './WebNovelInspiration';
 import { Plus, Clapperboard, FileText, List, Lightbulb } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable';
 
 type TabType = 'shots' | 'script' | 'inspiration';
 
@@ -15,10 +30,31 @@ export function ShotListPanel() {
   const [isAdding, setIsAdding] = useState(false);
   const [editingShotId, setEditingShotId] = useState<string | null>(null);
   
-  const { shots, selectShot, selectedShotId } = useEditorStore();
+  const { shots, selectShot, selectedShotId, reorderShots } = useEditorStore();
 
   // 按order排序
   const sortedShots = [...shots].sort((a, b) => a.order - b.order);
+
+  // 拖拽传感器
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates
+    })
+  );
+
+  // 拖拽结束处理
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      const oldIndex = sortedShots.findIndex(s => s.id === active.id);
+      const newIndex = sortedShots.findIndex(s => s.id === over.id);
+      
+      const newSortedShots = arrayMove(sortedShots, oldIndex, newIndex);
+      reorderShots(newSortedShots.map(s => s.id));
+    }
+  };
 
   const handleSelectShot = (shotId: string) => {
     selectShot(shotId);
@@ -117,17 +153,28 @@ export function ShotListPanel() {
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
-                {sortedShots.map((shot) => (
-                  <ShotCard
-                    key={shot.id}
-                    shot={shot}
-                    isSelected={selectedShotId === shot.id}
-                    onSelect={() => handleSelectShot(shot.id)}
-                    onEdit={() => handleEditShot(shot.id)}
-                  />
-                ))}
-              </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={sortedShots.map(s => s.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-3">
+                    {sortedShots.map((shot) => (
+                      <ShotCard
+                        key={shot.id}
+                        shot={shot}
+                        isSelected={selectedShotId === shot.id}
+                        onSelect={() => handleSelectShot(shot.id)}
+                        onEdit={() => handleEditShot(shot.id)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             )}
           </div>
 

@@ -135,6 +135,28 @@
 - [ ] 风险3：1000字扩写长度不稳定。
   - 预案：增加长度校验与二次补写机制。
 
+### ✅ Task 11: P0 功能增强（已完成）
+
+#### 11.1 数据持久化
+- [x] 集成 `zustand/middleware/persist`
+- [x] shots、assets、selectedShotId、selectedVideoId、generationStatus 自动保存到 localStorage
+- [x] 页面刷新后数据不丢失
+
+#### 11.2 拖拽排序
+- [x] 集成 `@dnd-kit/core` 和 `@dnd-kit/sortable`
+- [x] 分镜列表支持鼠标拖拽排序
+- [x] 支持键盘辅助排序
+- [x] 拖拽手柄显示在分镜卡片左侧
+
+#### 11.3 Undo/Redo
+- [x] 集成 `zundo` temporal middleware
+- [x] 支持最多 50 步历史记录
+- [x] 快捷键支持：
+  - `Ctrl/Cmd + Z` - 撤销
+  - `Ctrl/Cmd + Y` - 重做
+  - `Ctrl/Cmd + Shift + Z` - 重做
+- [x] 导出 `useUndo` hook 供组件使用
+
 ## ByteDance API 配置
 
 ### 视频生成

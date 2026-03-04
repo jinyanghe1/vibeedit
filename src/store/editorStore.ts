@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { temporal } from 'zundo';
 import type { 
   Shot, 
   Asset, 
@@ -65,6 +67,15 @@ const saveLLMConfig = (config: LLMConfig) => {
     // ignore
   }
 };
+
+// Store 状态类型（用于 persist 和 temporal）
+interface StoreState {
+  shots: Shot[];
+  assets: Record<string, Asset>;
+  selectedShotId: string | null;
+  selectedVideoId: string | null;
+  generationStatus: Record<string, GenerationStatus>;
+}
 
 interface EditorStore {
   shots: Shot[];
@@ -164,7 +175,11 @@ const mockGenerateFromScript = async (script: string): Promise<ScriptGenerationR
   };
 };
 
-export const useEditorStore = create<EditorStore>((set, get) => ({
+// 创建 Store
+export const useEditorStore = create<EditorStore>()(
+  temporal(
+    persist(
+      (set, get) => ({
   shots: [],
   assets: {},
   selectedShotId: null,
@@ -409,4 +424,47 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
     return undefined;
   }
-}));
+}),
+      {
+        name: 'storyboard-editor-data',
+        partialize: (state): StoreState => ({
+          shots: state.shots,
+          assets: state.assets,
+          selectedShotId: state.selectedShotId,
+          selectedVideoId: state.selectedVideoId,
+          generationStatus: state.generationStatus
+        })
+      }
+    ),
+    {
+      limit: 50, // 最多保存 50 步历史
+      partialize: (state): StoreState => ({
+        shots: state.shots,
+        assets: state.assets,
+        selectedShotId: state.selectedShotId,
+        selectedVideoId: state.selectedVideoId,
+        generationStatus: state.generationStatus
+      })
+    }
+  )
+);
+
+// Temporal state type
+type TemporalState = {
+  undo: () => void;
+  redo: () => void;
+  pastStates: StoreState[];
+  futureStates: StoreState[];
+};
+
+// Undo/Redo hook — uses zundo temporal store
+export const useUndo = () => {
+  const store = useEditorStore();
+  const temporalStore = (store as unknown as { temporal: TemporalState }).temporal;
+  return {
+    undo: temporalStore.undo,
+    redo: temporalStore.redo,
+    canUndo: temporalStore.pastStates.length > 0,
+    canRedo: temporalStore.futureStates.length > 0
+  };
+};

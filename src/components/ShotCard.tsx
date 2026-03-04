@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useEditorStore } from '../store/editorStore';
 import type { Shot } from '../types';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { 
   Wand2, 
   Play, 
@@ -12,7 +14,8 @@ import {
   Trash2,
   Loader2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  GripVertical
 } from 'lucide-react';
 
 interface ShotCardProps {
@@ -35,6 +38,22 @@ export function ShotCard({ shot, isSelected, onSelect, onEdit }: ShotCardProps) 
     assets,
     hasVideoApiKey
   } = useEditorStore();
+
+  // 拖拽排序
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging
+  } = useSortable({ id: shot.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1
+  };
 
   const status = generationStatus[shot.id] || 'idle';
   const hasVideos = shot.videos.length > 0;
@@ -85,15 +104,26 @@ export function ShotCard({ shot, isSelected, onSelect, onEdit }: ShotCardProps) 
 
   return (
     <div
+      ref={setNodeRef}
+      style={style}
       className={`relative p-4 rounded-lg border transition-all ${
         isSelected
           ? 'bg-blue-900/30 border-blue-500'
           : 'bg-gray-800/50 border-gray-700 hover:border-gray-600'
-      }`}
+      } ${isDragging ? 'shadow-lg' : ''}`}
     >
-      {/* 头部: 序号和菜单 */}
+      {/* 头部: 拖拽手柄、序号和菜单 */}
       <div className="flex items-start justify-between mb-2">
         <div className="flex items-center gap-2">
+          {/* 拖拽手柄 */}
+          <button
+            {...attributes}
+            {...listeners}
+            className="p-1 hover:bg-gray-700 rounded cursor-grab active:cursor-grabbing"
+            title="拖拽排序"
+          >
+            <GripVertical size={16} className="text-gray-500" />
+          </button>
           <span className="text-xs font-mono text-gray-500">#{shot.order + 1}</span>
           <span className="flex items-center gap-1 text-xs text-gray-400">
             <Clock size={12} />
