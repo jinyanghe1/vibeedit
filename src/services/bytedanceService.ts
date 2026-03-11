@@ -1,6 +1,16 @@
-import type { ApiConfig, Asset, LLMConfig, ScriptGenerationResult, StyleConfig } from '../types';
+import type {
+  ApiConfig,
+  Asset,
+  LLMConfig,
+  RichTextPreprocessResult,
+  ScriptGenerationResult,
+  StyleConfig,
+  ToneConfig
+} from '../types';
 import { fallbackParseShots, parseShotsFromLLMResponse } from '../utils/llmParser';
+import { toneConfigToPromptSegment } from '../utils/slateSerializer';
 import { callLLMByBackend, generateTextImageByBackend } from './backendProxy';
+import { preprocessRichTextWithMultiRound, type RichTextPreprocessCallOptions } from './richTextPreprocessService';
 
 // ByteDance 默认配置
 const BYTEDANCE_DEFAULTS = {
@@ -187,6 +197,17 @@ ${toneSegment}
     return result;
   }
 
+  async preprocessRichTextForStoryboard(
+    markdown: string,
+    onProgress?: (msg: string) => void
+  ): Promise<RichTextPreprocessResult> {
+    return preprocessRichTextWithMultiRound(
+      markdown,
+      (prompt, options) => this.callLLM(prompt, options),
+      onProgress
+    );
+  }
+
   private async analyzeScript(script: string): Promise<string> {
     const prompt = `请仔细阅读以下剧本内容，理解剧情、场景和角色：
 
@@ -237,7 +258,7 @@ ${script}
     return this.parseShotsFromResponse(response);
   }
 
-  private async callLLM(prompt: string): Promise<string> {
+  private async callLLM(prompt: string, options?: RichTextPreprocessCallOptions): Promise<string> {
     const { apiKey, apiUrl, model } = this.config;
 
     if (!apiKey) {
@@ -250,9 +271,9 @@ ${script}
       apiUrl,
       model: model || BYTEDANCE_DEFAULTS.textModel,
       prompt,
-      temperature: 0.7,
-      maxTokens: 2000,
-      systemPrompt: '你是一个专业的分镜师，擅长将剧本切分成视频分镜。请严格按照要求的 JSON 格式输出。'
+      temperature: options?.temperature ?? 0.7,
+      maxTokens: options?.maxTokens ?? 2000,
+      systemPrompt: options?.systemPrompt || '你是一个专业的分镜师，擅长将剧本切分成视频分镜。请严格按照要求的 JSON 格式输出。'
     });
   }
 

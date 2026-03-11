@@ -2,7 +2,7 @@ import { CheckCircle, ChevronDown, ChevronUp, Import, Loader2, Wand2 } from 'luc
 import { useState } from 'react';
 import type { Descendant } from 'slate';
 import { useEditorStore } from '../store/editorStore';
-import type { ScriptGenerationResult, ToneConfig } from '../types';
+import type { RichTextPreprocessResult, ScriptGenerationResult, ToneConfig } from '../types';
 import { serializeToMarkdown, serializeToPlainText } from '../utils/slateSerializer';
 import { RichTextEditor, createInitialValue } from './RichTextEditor';
 import { ToneSelector } from './ToneSelector';
@@ -17,14 +17,46 @@ export function RichTextToShots() {
     visualStyle: 'realistic',
   });
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPreprocessing, setIsPreprocessing] = useState(false);
   const [progress, setProgress] = useState('');
   const [result, setResult] = useState<ScriptGenerationResult | null>(null);
+  const [preprocessResult, setPreprocessResult] = useState<RichTextPreprocessResult | null>(null);
+  const [preprocessSourceMarkdown, setPreprocessSourceMarkdown] = useState('');
+  const [usePreprocessedDraft, setUsePreprocessedDraft] = useState(true);
   const [showToneSelector, setShowToneSelector] = useState(true);
 
-  const { generateShotsFromRichText, addShots, hasLLMConfig } = useEditorStore();
+  const { generateShotsFromRichText, preprocessRichTextForStoryboard, addShots, hasLLMConfig } = useEditorStore();
 
   const plainText = serializeToPlainText(editorValue);
+  const currentMarkdown = serializeToMarkdown(editorValue);
+  const hasFreshPreprocess = !!preprocessResult && preprocessSourceMarkdown === currentMarkdown;
   const hasContent = plainText.trim().length > 0;
+
+  const runPreprocess = async (markdown: string): Promise<RichTextPreprocessResult> => {
+    setIsPreprocessing(true);
+    try {
+      const preprocessed = await preprocessRichTextForStoryboard(markdown, (msg) => {
+        setProgress(msg);
+      });
+      setPreprocessResult(preprocessed);
+      setPreprocessSourceMarkdown(markdown);
+      return preprocessed;
+    } finally {
+      setIsPreprocessing(false);
+    }
+  };
+
+  const handlePreprocess = async () => {
+    if (!hasContent) return;
+    setProgress('');
+    try {
+      const preprocessed = await runPreprocess(currentMarkdown);
+      setProgress(`预处理完成：${preprocessed.summary}`);
+    } catch (err) {
+      console.error('富文本预处理失败:', err);
+      setProgress('预处理失败: ' + (err instanceof Error ? err.message : '未知错误'));
+    }
+  };
 
   const handleGenerate = async () => {
     if (!hasContent) return;
@@ -33,8 +65,23 @@ export function RichTextToShots() {
     setResult(null);
 
     try {
-      const markdown = serializeToMarkdown(editorValue);
-      const res = await generateShotsFromRichText(markdown, toneConfig, (msg) => {
+      let markdownForGeneration = currentMarkdown;
+
+      if (usePreprocessedDraft) {
+        if (hasFreshPreprocess && preprocessResult) {
+          markdownForGeneration = preprocessResult.preprocessedText;
+        } else {
+          try {
+            const preprocessed = await runPreprocess(currentMarkdown);
+            markdownForGeneration = preprocessed.preprocessedText;
+          } catch (preprocessErr) {
+            console.warn('预处理失败，回退原文生成', preprocessErr);
+            setProgress('预处理失败，已回退原文继续生成...');
+          }
+        }
+      }
+
+      const res = await generateShotsFromRichText(markdownForGeneration, toneConfig, (msg) => {
         setProgress(msg);
       });
       setResult(res);
@@ -77,6 +124,58 @@ export function RichTextToShots() {
         placeholder="输入视频脚本内容...&#10;&#10;使用标题分割场景，加粗标记重点画面要素，&#10;颜色标注表示情绪/氛围提示"
       />
 
+      {/* 预处理配置 */}
+      <div className="bg-gray-800/50 rounded-lg border border-gray-700 p-3 space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={usePreprocessedDraft}
+              onChange={(e) => setUsePreprocessedDraft(e.target.checked)}
+              className="rounded border-gray-600 bg-gray-900 text-blue-500 focus:ring-blue-500"
+            />
+            生成前启用 LLM 预处理（知识稿 → 可分镜稿）
+          </label>
+          <button
+            onClick={handlePreprocess}
+            disabled={!hasContent || isGenerating || isPreprocessing}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white rounded transition-colors"
+          >
+            {isPreprocessing ? (
+              <>
+                <Loader2 size={12} className="animate-spin" />
+                预处理中...
+              </>
+            ) : (
+              <>
+                <Wand2 size={12} />
+                预处理稿件
+              </>
+            )}
+          </button>
+        </div>
+
+        {usePreprocessedDraft && preprocessResult && !hasFreshPreprocess && (
+          <p className="text-xs text-yellow-400">
+            输入已变更，当前预处理结果已过期。点击“预处理稿件”或直接生成会自动重新预处理。
+          </p>
+        )}
+
+        {preprocessResult && (
+          <div className="bg-gray-900/60 border border-gray-700 rounded-lg p-2.5 space-y-2">
+            <div className="text-xs text-gray-400">
+              文体: {preprocessResult.metadata.detectedGenre} | 长度: {preprocessResult.metadata.originalLength} → {preprocessResult.metadata.processedLength}（比例 {preprocessResult.metadata.lengthRatio.toFixed(2)}）
+            </div>
+            <p className="text-xs text-gray-300">{preprocessResult.summary}</p>
+            <textarea
+              readOnly
+              value={preprocessResult.preprocessedText}
+              className="w-full h-28 px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-gray-300 resize-y focus:outline-none"
+            />
+          </div>
+        )}
+      </div>
+
       {/* 调性选择器 */}
       <div className="bg-gray-800/50 rounded-lg border border-gray-700 overflow-hidden">
         <button
@@ -103,13 +202,13 @@ export function RichTextToShots() {
       {/* 生成按钮 */}
       <button
         onClick={handleGenerate}
-        disabled={!hasContent || isGenerating}
+        disabled={!hasContent || isGenerating || isPreprocessing}
         className="w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:from-gray-700 disabled:to-gray-700 disabled:cursor-not-allowed text-white rounded-lg transition-all font-medium"
       >
-        {isGenerating ? (
+        {isGenerating || isPreprocessing ? (
           <>
             <Loader2 size={18} className="animate-spin" />
-            生成中...
+            {isPreprocessing ? '预处理中...' : '生成中...'}
           </>
         ) : (
           <>

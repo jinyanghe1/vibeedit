@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 import { ByteDanceLLMService, generateVideoWithByteDance } from '../services/bytedanceService';
 import { LLMService } from '../services/llmService';
 import { WebNovelInspirationService, mockGenerateWebNovelInspiration } from '../services/webNovelInspirationService';
+import { RichTextPreprocessService } from '../services/richTextPreprocessService';
 import type {
     ApiConfig,
     Asset,
@@ -13,6 +14,7 @@ import type {
     ConsistencyReport,
     GenerationStatus,
     LLMConfig,
+    RichTextPreprocessResult,
     ScriptGenerationResult,
     Shot,
     ShotAssetInsertion,
@@ -136,6 +138,7 @@ interface EditorStore {
   updateAssetInsertion: (shotId: string, insertionId: string, updates: Partial<ShotAssetInsertion>) => void;
   generateShotsFromScript: (script: string, onProgress?: (msg: string) => void) => Promise<ScriptGenerationResult>;
   generateShotsFromRichText: (markdown: string, toneConfig: ToneConfig, onProgress?: (msg: string) => void) => Promise<ScriptGenerationResult>;
+  preprocessRichTextForStoryboard: (markdown: string, onProgress?: (msg: string) => void) => Promise<RichTextPreprocessResult>;
   generateWebNovelInspiration: (keywords: string[], direction?: string, onProgress?: (msg: string) => void) => Promise<WebNovelInspirationResult>;
   getShotById: (id: string) => Shot | undefined;
   getSelectedShot: () => Shot | undefined;
@@ -539,11 +542,56 @@ export const useEditorStore = create<EditorStore>()(
     }
   },
 
-  generateShotsFromRichText: async (markdown: string, _toneConfig: ToneConfig, onProgress?: (msg: string) => void): Promise<ScriptGenerationResult> => {
-    // TODO: 富文本生成支持调性配置
-    // 目前回退到普通剧本生成
-    onProgress?.('使用富文本模式生成...');
-    return get().generateShotsFromScript(markdown, onProgress);
+  generateShotsFromRichText: async (
+    markdown: string,
+    toneConfig: ToneConfig,
+    onProgress?: (msg: string) => void
+  ): Promise<ScriptGenerationResult> => {
+    const { llmConfig, hasLLMConfig } = get();
+
+    if (hasLLMConfig() && llmConfig.provider === 'bytedance') {
+      const service = new ByteDanceLLMService(llmConfig);
+      return service.generateFromRichText(markdown, toneConfig, onProgress);
+    } else if (hasLLMConfig()) {
+      const service = new LLMService(llmConfig);
+      return service.generateFromRichText(markdown, toneConfig, onProgress);
+    } else {
+      onProgress?.('使用模拟模式（未配置LLM）...');
+      return mockGenerateFromScript(markdown);
+    }
+  },
+
+  preprocessRichTextForStoryboard: async (
+    markdown: string,
+    onProgress?: (msg: string) => void
+  ): Promise<RichTextPreprocessResult> => {
+    const { llmConfig, hasLLMConfig } = get();
+
+    if (hasLLMConfig()) {
+      const service = new RichTextPreprocessService(llmConfig);
+      return service.preprocess(
+        markdown,
+        { enableMultiRound: true, targetShots: 5, preserveFormatting: true },
+        (stage: string, message: string) => {
+          onProgress?.(`[${stage}] ${message}`);
+        }
+      );
+    }
+
+    // 降级：返回原始文本的简单包装
+    onProgress?.('未配置 LLM，返回原始文本');
+    return {
+      preprocessedText: markdown,
+      summary: '未配置 LLM，使用原始文本',
+      metadata: {
+        originalLength: markdown.length,
+        processedLength: markdown.length,
+        lengthRatio: 1,
+        detectedGenre: '通用文本',
+        rounds: 0,
+        infoChecklistCount: 0
+      }
+    };
   },
 
   generateWebNovelInspiration: async (keywords: string[], direction?: string, onProgress?: (msg: string) => void): Promise<WebNovelInspirationResult> => {

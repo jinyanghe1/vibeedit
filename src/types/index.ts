@@ -214,6 +214,20 @@ export interface ScriptGenerationResult {
   summary?: string;
 }
 
+// 富文本预处理结果
+export interface RichTextPreprocessResult {
+  preprocessedText: string;
+  summary: string;
+  metadata: {
+    originalLength: number;
+    processedLength: number;
+    lengthRatio: number;
+    detectedGenre: string;
+    rounds: number;
+    infoChecklistCount: number;
+  };
+}
+
 // 互联网检索结果
 export interface WebSearchItem {
   title: string;

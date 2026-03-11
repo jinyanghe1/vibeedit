@@ -1,10 +1,11 @@
-import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import { useEditorStore, useUndo } from '../../src/store/editorStore';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as bytedanceService from '../../src/services/bytedanceService';
 import { ByteDanceLLMService } from '../../src/services/bytedanceService';
 import { LLMService } from '../../src/services/llmService';
+import { RichTextPreprocessService } from '../../src/services/richTextPreprocessService';
 import { WebNovelInspirationService } from '../../src/services/webNovelInspirationService';
+import { useEditorStore, useUndo } from '../../src/store/editorStore';
 
 type TemporalApi = {
   undo: () => void;
@@ -511,6 +512,96 @@ describe('Editor Store', () => {
 
       bytedanceSpy.mockRestore();
       llmSpy.mockRestore();
+    });
+
+    it('should route generateShotsFromRichText to ByteDance/LLM/mock branches', async () => {
+      const bytedanceSpy = vi.spyOn(ByteDanceLLMService.prototype, 'generateFromRichText')
+        .mockResolvedValue({ shots: [], summary: 'bd-rich' });
+      const llmSpy = vi.spyOn(LLMService.prototype, 'generateFromRichText')
+        .mockResolvedValue({ shots: [], summary: 'llm-rich' });
+      const preprocessSpy = vi.spyOn(RichTextPreprocessService.prototype, 'preprocess')
+        .mockResolvedValue({
+          preprocessedText: 'preprocessed-rich-text',
+          summary: 'preprocess-ok',
+          metadata: {
+            originalLength: 12,
+            processedLength: 12,
+            lengthRatio: 1,
+            detectedGenre: 'analysis',
+            rounds: 3,
+            infoChecklistCount: 2
+          }
+        });
+
+      const toneConfig = {
+        rhythm: 'moderate' as const,
+        colorTone: 'neutral' as const,
+        cameraStyle: 'steady' as const,
+        narrativeStyle: 'voiceover' as const,
+        visualStyle: 'realistic' as const
+      };
+
+      useEditorStore.setState({
+        llmConfig: { provider: 'bytedance', apiKey: 'k', apiUrl: 'u', model: 'm' }
+      });
+      await expect(useEditorStore.getState().generateShotsFromRichText('富文本', toneConfig)).resolves.toEqual({ shots: [], summary: 'bd-rich' });
+
+      useEditorStore.setState({
+        llmConfig: { provider: 'openai', apiKey: 'k', apiUrl: 'u', model: 'm' }
+      });
+      await expect(useEditorStore.getState().generateShotsFromRichText('富文本', toneConfig)).resolves.toEqual({ shots: [], summary: 'llm-rich' });
+
+      useEditorStore.setState({
+        llmConfig: { provider: 'openai', apiKey: '', apiUrl: 'u', model: 'm' }
+      });
+      const mockResult = await useEditorStore.getState().generateShotsFromRichText('只有一句话', toneConfig);
+      expect(mockResult.summary).toContain('模拟模式');
+
+      bytedanceSpy.mockRestore();
+      llmSpy.mockRestore();
+      preprocessSpy.mockRestore();
+    });
+
+    it('should route preprocessRichTextForStoryboard to preprocess service and fallback branch', async () => {
+      const preprocessSpy = vi.spyOn(RichTextPreprocessService.prototype, 'preprocess')
+        .mockResolvedValue({
+          preprocessedText: 'processed',
+          summary: 'processed-summary',
+          metadata: {
+            originalLength: 10,
+            processedLength: 10,
+            lengthRatio: 1,
+            detectedGenre: 'mixed',
+            rounds: 3,
+            infoChecklistCount: 8
+          }
+        });
+
+      useEditorStore.setState({
+        llmConfig: { provider: 'bytedance', apiKey: 'k', apiUrl: 'u', model: 'm' }
+      });
+      await expect(useEditorStore.getState().preprocessRichTextForStoryboard('富文本')).resolves.toMatchObject({
+        preprocessedText: 'processed',
+        summary: 'processed-summary'
+      });
+
+      useEditorStore.setState({
+        llmConfig: { provider: 'openai', apiKey: 'k', apiUrl: 'u', model: 'm' }
+      });
+      await expect(useEditorStore.getState().preprocessRichTextForStoryboard('富文本')).resolves.toMatchObject({
+        preprocessedText: 'processed',
+        summary: 'processed-summary'
+      });
+
+      useEditorStore.setState({
+        llmConfig: { provider: 'openai', apiKey: '', apiUrl: 'u', model: 'm' }
+      });
+      const mockResult = await useEditorStore.getState().preprocessRichTextForStoryboard('A | B');
+      expect(mockResult.summary).toContain('原始文本');
+      expect(mockResult.preprocessedText).toContain('A');
+
+      expect(preprocessSpy).toHaveBeenCalledTimes(2);
+      preprocessSpy.mockRestore();
     });
 
     it('should route generateWebNovelInspiration to real service when llm config exists', async () => {

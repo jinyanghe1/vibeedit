@@ -70,6 +70,33 @@ describe('LLMService', () => {
     expect(errorSpy).toHaveBeenCalled();
   });
 
+  it('preprocessRichTextForStoryboard uses multi-round pipeline and keeps near-original length', async () => {
+    const backendMock = vi.mocked(callLLMByBackend)
+      .mockResolvedValueOnce(
+        '```json\n{"genre":"analysis","coreFacts":[{"id":"F1","fact":"提出核心问题"},{"id":"F2","fact":"给出政策建议"}]}\n```'
+      )
+      .mockResolvedValueOnce(
+        '```json\n{"rewrittenText":"第一段：提出核心问题。第二段：给出政策建议。","summary":"完成结构重写","coverageChecklist":[{"factId":"F1","kept":true},{"factId":"F2","kept":true}]}\n```'
+      )
+      .mockResolvedValueOnce(
+        '```json\n{"finalText":"提出核心问题，并给出政策建议。","summary":"长度已校准"}\n```'
+      );
+
+    const service = createByteDanceService();
+    const progressSpy = vi.fn();
+    const result = await service.preprocessRichTextForStoryboard('原文：提出核心问题并给出政策建议。', progressSpy);
+
+    expect(backendMock).toHaveBeenCalledTimes(3);
+    expect(result.preprocessedText).toContain('政策建议');
+    expect(result.metadata.rounds).toBe(3);
+    expect(result.metadata.detectedGenre).toBe('analysis');
+    expect(result.metadata.lengthRatio).toBeGreaterThan(0.8);
+    expect(result.metadata.lengthRatio).toBeLessThan(1.3);
+    expect(progressSpy).toHaveBeenNthCalledWith(1, '预处理 1/3：抽取信息骨架...');
+    expect(progressSpy).toHaveBeenNthCalledWith(2, '预处理 2/3：重写为可分镜稿件...');
+    expect(progressSpy).toHaveBeenNthCalledWith(3, '预处理 3/3：长度与密度校准...');
+  });
+
   it('returns default model and api url by provider', () => {
     expect(LLMService.getDefaultModel('bytedance')).toBeTruthy();
     expect(LLMService.getDefaultApiUrl('openai')).toContain('openai.com');

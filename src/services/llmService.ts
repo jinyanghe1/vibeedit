@@ -1,7 +1,16 @@
-import type { ComplianceResult, LLMConfig, LLMProvider, ScriptGenerationResult, ScriptShotData, ToneConfig } from '../types';
+import type {
+  ComplianceResult,
+  LLMConfig,
+  LLMProvider,
+  RichTextPreprocessResult,
+  ScriptGenerationResult,
+  ScriptShotData,
+  ToneConfig
+} from '../types';
 import { extractJsonFromResponse, fallbackParseShots, parseShotsFromLLMResponse, safeJsonParse } from '../utils/llmParser';
 import { toneConfigToPromptSegment } from '../utils/slateSerializer';
 import { callLLMByBackend } from './backendProxy';
+import { preprocessRichTextWithMultiRound, type RichTextPreprocessCallOptions } from './richTextPreprocessService';
 
 // 默认模型配置
 const DEFAULT_MODELS: Record<LLMProvider, string> = {
@@ -196,7 +205,7 @@ ${shotsDesc}
     }
   }
 
-  private async callLLM(prompt: string): Promise<string> {
+  private async callLLM(prompt: string, options?: RichTextPreprocessCallOptions): Promise<string> {
     const { provider, apiKey, apiUrl, model } = this.config;
 
     if (!apiKey) {
@@ -208,11 +217,11 @@ ${shotsDesc}
       apiUrl,
       model: model || DEFAULT_MODELS[provider],
       prompt,
-      temperature: 0.7,
-      maxTokens: 2000,
-      systemPrompt: provider === 'openai'
+      temperature: options?.temperature ?? 0.7,
+      maxTokens: options?.maxTokens ?? 2000,
+      systemPrompt: options?.systemPrompt || (provider === 'openai'
         ? 'You are a professional storyboard artist.'
-        : '你是一个专业的分镜师，擅长将剧本切分成视频分镜。请严格按照要求的 JSON 格式输出。'
+        : '你是一个专业的分镜师，擅长将剧本切分成视频分镜。请严格按照要求的 JSON 格式输出。')
     });
   }
 
@@ -307,6 +316,17 @@ ${toneSegment}
 
     onProgress?.(`生成完成！共 ${result.shots.length} 个分镜`);
     return result;
+  }
+
+  async preprocessRichTextForStoryboard(
+    markdown: string,
+    onProgress?: (msg: string) => void
+  ): Promise<RichTextPreprocessResult> {
+    return preprocessRichTextWithMultiRound(
+      markdown,
+      (prompt, options) => this.callLLM(prompt, options),
+      onProgress
+    );
   }
 }
 
