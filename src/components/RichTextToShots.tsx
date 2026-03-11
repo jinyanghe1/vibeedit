@@ -1,5 +1,5 @@
 import { CheckCircle, ChevronDown, ChevronUp, Import, Loader2, Wand2 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Descendant } from 'slate';
 import { useEditorStore } from '../store/editorStore';
 import type { RichTextPreprocessResult, ScriptGenerationResult, ToneConfig } from '../types';
@@ -7,20 +7,78 @@ import { serializeToMarkdown, serializeToPlainText } from '../utils/slateSeriali
 import { RichTextEditor, createInitialValue } from './RichTextEditor';
 import { ToneSelector } from './ToneSelector';
 
+interface CoverageViewItem {
+  factId: string;
+  kept: boolean;
+  evidence?: string;
+}
+
+const EVIDENCE_STOPWORDS = new Set([
+  '第1段',
+  '第2段',
+  '第3段',
+  '第4段',
+  '第5段',
+  '保留',
+  '缺失',
+  '补回',
+  '补充',
+  '信息',
+  '说明',
+  '体现',
+  '内容'
+]);
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function HighlightedText({ text, keyword }: { text: string; keyword?: string }) {
-  if (!keyword?.trim()) {
+function normalizeKeyword(value: string): string {
+  return value
+    .trim()
+    .replace(/^第\d+段/, '')
+    .replace(/^(保留|缺失|补回|补充|体现|提及|说明)/, '')
+    .replace(/(保留|缺失|补回|补充|体现|提及|说明)$/g, '')
+    .trim();
+}
+
+function extractEvidenceKeywords(items: CoverageViewItem[]): string[] {
+  const keywords = new Set<string>();
+
+  for (const item of items) {
+    if (!item.evidence) continue;
+    const tokens = item.evidence.match(/[\u4e00-\u9fa5A-Za-z0-9]{2,}/g) || [];
+    for (const rawToken of tokens) {
+      const token = normalizeKeyword(rawToken);
+      if (token.length < 2 || EVIDENCE_STOPWORDS.has(token)) continue;
+      keywords.add(token);
+      if (keywords.size >= 8) break;
+    }
+    if (keywords.size >= 8) break;
+  }
+
+  return Array.from(keywords);
+}
+
+function textContainsKeyword(text: string, keyword: string): boolean {
+  return text.toLowerCase().includes(keyword.toLowerCase());
+}
+
+function HighlightedText({ text, keywords }: { text: string; keywords?: string[] }) {
+  const activeKeywords = Array.from(
+    new Set((keywords || []).map(normalizeKeyword).filter((item) => item.length >= 2))
+  ).sort((a, b) => b.length - a.length);
+
+  if (activeKeywords.length === 0) {
     return <span>{text}</span>;
   }
 
-  const parts = text.split(new RegExp(`(${escapeRegExp(keyword.trim())})`, 'gi'));
+  const pattern = activeKeywords.map((item) => escapeRegExp(item)).join('|');
+  const parts = text.split(new RegExp(`(${pattern})`, 'gi'));
   return (
     <>
       {parts.map((part, index) =>
-        part.toLowerCase() === keyword.trim().toLowerCase() ? (
+        activeKeywords.some((keyword) => keyword.toLowerCase() === part.toLowerCase()) ? (
           <mark key={`${part}-${index}`} className="bg-yellow-500/30 text-yellow-100 rounded px-0.5">
             {part}
           </mark>
@@ -50,6 +108,7 @@ export function RichTextToShots() {
   const [usePreprocessedDraft, setUsePreprocessedDraft] = useState(true);
   const [showToneSelector, setShowToneSelector] = useState(true);
   const [selectedFactId, setSelectedFactId] = useState<string>('all');
+  const [onlyMissingCoverage, setOnlyMissingCoverage] = useState(false);
 
   const { generateShotsFromRichText, preprocessRichTextForStoryboard, addShots, hasLLMConfig } = useEditorStore();
 
@@ -60,8 +119,31 @@ export function RichTextToShots() {
   const selectedFact = selectedFactId === 'all'
     ? undefined
     : preprocessResult?.detectedFacts?.find((fact) => fact.id === selectedFactId);
-  const filteredCoverage = preprocessResult?.coverageChecklist?.filter((item) =>
-    selectedFactId === 'all' ? true : item.factId === selectedFactId
+  const factFilteredCoverage = useMemo(
+    () =>
+      (preprocessResult?.coverageChecklist || []).filter((item) =>
+        selectedFactId === 'all' ? true : item.factId === selectedFactId
+      ),
+    [preprocessResult?.coverageChecklist, selectedFactId]
+  );
+  const visibleCoverage = useMemo(
+    () => (onlyMissingCoverage ? factFilteredCoverage.filter((item) => !item.kept) : factFilteredCoverage),
+    [factFilteredCoverage, onlyMissingCoverage]
+  );
+  const evidenceKeywords = useMemo(() => extractEvidenceKeywords(visibleCoverage).slice(0, 6), [visibleCoverage]);
+  const highlightKeywords = useMemo(() => {
+    const mergedKeywords = [selectedFact?.fact || '', ...evidenceKeywords];
+    return Array.from(
+      new Set(mergedKeywords.map(normalizeKeyword).filter((item) => item.length >= 2))
+    );
+  }, [selectedFact?.fact, evidenceKeywords]);
+  const sourceEvidenceHits = useMemo(
+    () => evidenceKeywords.filter((keyword) => textContainsKeyword(preprocessSourceMarkdown, keyword)).length,
+    [evidenceKeywords, preprocessSourceMarkdown]
+  );
+  const draftEvidenceHits = useMemo(
+    () => evidenceKeywords.filter((keyword) => textContainsKeyword(preprocessResult?.preprocessedText || '', keyword)).length,
+    [evidenceKeywords, preprocessResult?.preprocessedText]
   );
 
   const runPreprocess = async (markdown: string): Promise<RichTextPreprocessResult> => {
@@ -72,6 +154,7 @@ export function RichTextToShots() {
       });
       setPreprocessResult(preprocessed);
       setSelectedFactId('all');
+      setOnlyMissingCoverage(false);
       setPreprocessSourceMarkdown(markdown);
       return preprocessed;
     } finally {
@@ -205,13 +288,13 @@ export function RichTextToShots() {
               <div className="space-y-1">
                 <div className="text-[11px] text-gray-500">原文（预处理输入）</div>
                 <div className="w-full h-28 px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-gray-400 overflow-auto whitespace-pre-wrap">
-                  <HighlightedText text={preprocessSourceMarkdown} keyword={selectedFact?.fact} />
+                  <HighlightedText text={preprocessSourceMarkdown} keywords={highlightKeywords} />
                 </div>
               </div>
               <div className="space-y-1">
                 <div className="text-[11px] text-gray-500">预处理稿件（用于分镜生成）</div>
                 <div className="w-full h-28 px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-gray-300 overflow-auto whitespace-pre-wrap">
-                  <HighlightedText text={preprocessResult.preprocessedText} keyword={selectedFact?.fact} />
+                  <HighlightedText text={preprocessResult.preprocessedText} keywords={highlightKeywords} />
                 </div>
               </div>
             </div>
@@ -250,9 +333,35 @@ export function RichTextToShots() {
                   </div>
                 )}
 
-                {filteredCoverage && filteredCoverage.length > 0 && (
+                <label className="flex items-center gap-2 text-xs text-gray-400 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={onlyMissingCoverage}
+                    onChange={(e) => setOnlyMissingCoverage(e.target.checked)}
+                    className="rounded border-gray-700 bg-gray-900 text-red-500 focus:ring-red-500"
+                  />
+                  只看缺失项
+                </label>
+
+                {evidenceKeywords.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-gray-500">证据定位词</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {evidenceKeywords.map((keyword) => (
+                        <span key={keyword} className="text-[11px] bg-yellow-500/10 text-yellow-300 px-2 py-0.5 rounded border border-yellow-500/20">
+                          {keyword}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="text-[11px] text-gray-500">
+                      定位命中：原文 {sourceEvidenceHits}/{evidenceKeywords.length} · 预处理稿 {draftEvidenceHits}/{evidenceKeywords.length}
+                    </div>
+                  </div>
+                )}
+
+                {visibleCoverage.length > 0 && (
                   <ul className="space-y-1">
-                    {filteredCoverage.map((item) => (
+                    {visibleCoverage.map((item) => (
                       <li key={item.factId} className="text-xs text-gray-300 flex items-start gap-2">
                         <span className={`px-1.5 py-0.5 rounded text-[10px] ${item.kept ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                           {item.kept ? '保留' : '缺失'}
@@ -264,8 +373,14 @@ export function RichTextToShots() {
                   </ul>
                 )}
 
-                {selectedFactId !== 'all' && (!filteredCoverage || filteredCoverage.length === 0) && (
-                  <div className="text-xs text-gray-500">当前事实点暂无覆盖明细。</div>
+                {visibleCoverage.length === 0 && (
+                  <div className="text-xs text-gray-500">
+                    {onlyMissingCoverage
+                      ? '当前筛选条件下无缺失项。'
+                      : selectedFactId !== 'all'
+                        ? '当前事实点暂无覆盖明细。'
+                        : '暂无覆盖明细。'}
+                  </div>
                 )}
 
                 {preprocessResult.adjustments && preprocessResult.adjustments.length > 0 && (

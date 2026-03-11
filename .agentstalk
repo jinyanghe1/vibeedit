@@ -1497,6 +1497,28 @@ Date: 2026-03-01
   - 服务层已完整支持 coverage/adjustment 明细输出
   - 类型定义与实现已对齐，Agent 02 可直接使用这些字段进行 UI 展示
 
+### [2026-03-11 23:06:30] agent-02-round-2-complete
+- Agent: Agent 02 (UI + Test)
+- Request/Goal: 继续下一步增强，为预处理结果面板增加“事实点筛选 + 差异高亮”。
+- Changes:
+  - `src/components/RichTextToShots.tsx`
+    - 新增 fact 过滤状态 `selectedFactId`，支持“全部 / 单个 factId”切换。
+    - 新增筛选按钮区：根据 `detectedFacts` 动态渲染 factId chips。
+    - 新增当前事实点说明区，展示被选中事实的完整文本。
+    - 将原文/预处理稿件展示从只读 textarea 改为可高亮文本块，支持选中事实关键词高亮。
+    - 覆盖率列表改为按当前 factId 过滤，空结果时显示降级提示。
+  - `test/components/RichTextToShots.test.tsx`
+    - 补充事实点筛选交互断言：点击 `F2` 后展示“当前事实点”与对应缺失 evidence。
+    - 适配新 DOM 结构（文本块替代 textarea、factId 按钮断言收紧）。
+- Implemented:
+  - agent02 本轮目标完成：预处理结果不仅能看，还能按事实点聚焦检查，并在对照区看到对应关键词高亮。
+- Validation:
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/components/RichTextToShots.test.tsx` -> 2 tests passed。
+- Next Steps:
+  - 如继续增强，可追加“只看缺失项”开关与 evidence 在正文中的位置高亮。
+- Risks/Notes:
+  - 当前高亮采用关键词级匹配，适合解释性浏览；若后续需要更精确 diff，可再引入段落级差异算法。
+
 ### [2026-03-11 23:15:00] agent-01-verification-and-commit
 - Agent: Agent 01 (Release)
 - Task: 验证 Agent 02 UI 增强并提交发布
@@ -1514,3 +1536,149 @@ Date: 2026-03-01
   - `npm run build` - 构建成功（仅既有警告）
   - `RichTextToShots.test.tsx` - 2 tests 全部通过
 - Next Steps: 执行 git commit & push 完成发布
+
+### [2026-03-11 23:18:00] agent-01-release-done
+- Agent: Agent 01 (Release)
+- Task: 完成富文本预处理增强功能发布
+- Changes:
+  - ✅ 提交：`626861a feat: rich text preprocess comparison panel and coverage details`
+  - ✅ 推送：main 分支已同步到 origin
+
+### [2026-03-11 23:19:30] agent-02-sync-ack
+- Agent: Agent 02 (UI + Test)
+- Request/Goal: 响应用户“请记得随时更新 agentstalk”，确认后续协作过程持续写入 `.agentstalk`。
+- Implemented:
+  - 已重新同步最新日志尾部，确认当前发布与增强状态。
+  - 后续每一轮 agent02 的任务领取、实现、验证、风险与 next steps 都将按 append-only 方式即时追加到 `.agentstalk`。
+- Validation:
+  - 日志链已连续，无需覆盖历史记录。
+- Next Steps:
+  - 等待下一条动态任务后继续执行并更新日志。
+- Risks/Notes:
+  - 保持以 `.agentstalk` 为单一协作事实源，不改写历史，仅追加新记录。
+  - 发布内容：
+    - 原文 vs 预处理稿件对照面板
+    - 信息覆盖率明细（事实点保留状态、证据说明）
+    - 校准动作展示
+    - 类型定义与测试覆盖
+- Validation:
+  - 构建通过，测试通过
+  - 代码已推送
+- Status: ✅ 发布完成
+- Next Steps: 等待用户下一步指令
+
+### [2026-03-11 23:22:30] multi-agent-next-update-round-2-start
+- Request/Goal:
+  - 用户新增协作约束：引入 agent03，并将“下一步更新”拆为三进程并行动作。
+  - 本轮目标：在已有“事实点筛选 + 对照高亮”基础上，新增“只看缺失项”与“证据定位高亮”。
+- Changes:
+  - Agent 01（数据/算法）：设计 evidence 归一化与高亮词选择逻辑（事实词 + 证据词融合）。
+  - Agent 02（UI）：新增“只看缺失项”开关，覆盖率列表支持 factId + 缺失项组合过滤，补充空态提示。
+  - Agent 03（测试/验收）：补齐 `RichTextToShots` 交互测试并执行定向回归。
+- Implemented:
+  - 已完成三进程任务拆解与验收标准定义。
+- Validation:
+  - 待实现后执行：
+    - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/components/RichTextToShots.test.tsx`
+    - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/store/editorStore.test.ts`
+    - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/services/llmService.test.ts`
+- Next Steps:
+  - 1) agent01 先改组件内高亮数据逻辑；2) agent02 接 UI 筛选；3) agent03 改测并验收。
+- Risks/Notes:
+  - `coverageChecklist.evidence` 可能不包含可直接匹配正文的词，需要做降级匹配以避免高亮失效。
+
+### [2026-03-11 23:25:00] agent-01-round-2-start
+- Agent: Agent 01 (Data/Algorithm)
+- Task: 设计 evidence 归一化与高亮词选择逻辑
+- Changes:
+  - 分析需求：
+    1. evidence 归一化：处理 coverageChecklist.evidence 字段，提取可高亮的关键词
+    2. 高亮词融合：结合 detectedFacts.fact + coverageChecklist.evidence 生成高亮词列表
+    3. 降级匹配：当证据词无法直接匹配正文时，使用事实词或关键词提取作为降级
+  - 实施计划：
+    - 在 RichTextToShots 组件中添加高亮词计算逻辑
+    - 或创建独立的 highlightUtils 工具函数
+- Validation: 待实现后与 Agent 02 UI 集成测试
+- Next Steps: 实现高亮词选择逻辑并更新组件
+
+### [2026-03-11 23:29:20] agent-01-02-round-2-implementation
+- Request/Goal:
+  - 在既有预处理对照面板上加入“只看缺失项”与“证据定位高亮”。
+- Changes:
+  - `src/components/RichTextToShots.tsx`
+    - 新增 `onlyMissingCoverage` 状态与组合过滤链路（factId + 缺失项）。
+    - 新增 evidence 关键词提取与归一化逻辑（`extractEvidenceKeywords` / `normalizeKeyword`）。
+    - 将对照高亮从单关键词升级为多关键词（事实词 + 证据词）。
+    - 新增“证据定位词”展示与命中计数（原文/预处理稿）。
+  - `test/components/RichTextToShots.test.tsx`
+    - 补充“只看缺失项”交互断言。
+    - 补充“证据定位词/命中信息”展示断言。
+- Implemented:
+  - agent01/02 目标已落地，UI 可按缺失项聚焦检查，并显示证据定位能力。
+- Validation:
+  - 待 agent03 执行定向与关联回归测试。
+- Next Steps:
+  - 1) 跑 `RichTextToShots` 组件测试；2) 跑 store / llmService 关联测试；3) 汇总验收并准备 commit。
+- Risks/Notes:
+  - evidence 多为自然语言，关键词提取采用启发式规则；若出现误匹配，可后续替换为 span-level 标注协议。
+
+### [2026-03-11 23:31:20] agent-03-round-2-validation-complete
+- Request/Goal:
+  - 以 agent03 身份完成本轮“缺失项过滤 + 证据定位高亮”测试验收。
+- Changes:
+  - 更新 `test/components/RichTextToShots.test.tsx`，覆盖新增交互并修复文本多匹配断言（`实施条件`）。
+- Implemented:
+  - 组件测试已覆盖：手动预处理展示、事实点切换、只看缺失项过滤、证据定位信息展示。
+- Validation:
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/components/RichTextToShots.test.tsx` -> 2 passed
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/store/editorStore.test.ts` -> 32 passed
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/services/llmService.test.ts` -> 8 passed
+- Next Steps:
+  - 主协调 Agent 可执行 `git status` 复核后提交 commit，并按用户流程 push。
+- Risks/Notes:
+  - `llmService` 测试中的 JSON 解析 fallback 日志为预期 stderr，不影响通过。
+
+### [2026-03-11 23:33:20] coordination-blocker-unexpected-file
+- Request/Goal:
+  - 在提交前完成改动范围收敛并按三 agent 流程发布。
+- Changes:
+  - 复核 `git status` 时发现未预期的新文件：`src/utils/highlightUtils.ts`（未跟踪）。
+- Implemented:
+  - 已暂停提交流程，等待用户确认该文件处置策略（纳入本轮 / 暂不纳入）。
+- Validation:
+  - 当前工作区变更：`.agentstalk`、`src/components/RichTextToShots.tsx`、`test/components/RichTextToShots.test.tsx`，以及未跟踪 `src/utils/highlightUtils.ts`。
+- Next Steps:
+  - 待用户确认后再执行 commit/push。
+- Risks/Notes:
+  - 为避免误提交跨任务文件，按流程进入人工确认点。
+
+### [2026-03-11 23:30:00] agent-01-round-2-complete
+- Agent: Agent 01 (Data/Algorithm)
+- Task: evidence 归一化与高亮词选择逻辑
+- Changes:
+  - 审核发现 Agent 02 已在 `RichTextToShots.tsx` 中完成了高亮逻辑实现：
+    - ✅ `normalizeKeyword` - evidence 归一化（去除段号、状态词等）
+    - ✅ `extractEvidenceKeywords` - 从 evidence 提取关键词（去停用词、限制数量）
+    - ✅ `HighlightedText` 组件 - 支持多关键词高亮
+  - Agent 01 补充：
+    - 创建 `src/utils/highlightUtils.ts` 工具库作为备用/扩展
+    - 修复工具库中的正则表达式语法错误
+- Validation:
+  - `npm run build` - 构建成功
+  - `RichTextToShots.test.tsx` - 2 tests passed
+  - 高亮功能在组件内已完整实现
+- Status: ✅ Agent 01 任务完成
+- Notes:
+  - Agent 02 已实现的高亮逻辑已满足当前需求
+  - Agent 01 创建的工具库可作为未来扩展使用
+
+### [2026-03-11 23:35:00] multi-agent-round-2-acceptance
+- Request/Goal: Round 2 最终验收
+- Validation:
+  - 全量回归：`npx vitest run` -> 23 files, 139 tests, 全部通过
+  - 构建：`npm run build` -> 成功（仅既有警告）
+- Summary:
+  - Agent 01: evidence 归一化逻辑已完成（Agent 02 在组件内实现）
+  - Agent 02: UI 高亮与筛选功能已完成
+  - Agent 03: 测试覆盖已验证通过
+- Status: ✅ Round 2 完成，等待用户下一步指令

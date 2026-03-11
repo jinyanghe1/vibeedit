@@ -30,6 +30,10 @@ describe('RichTextToShots Component', () => {
       preprocessRichTextForStoryboard: vi.fn().mockResolvedValue({
         preprocessedText: '预处理后稿件',
         summary: '长度比例 1.00，信息密度保持在可接受范围。',
+        detectedFacts: [
+          { id: 'F1', fact: '背景信息' },
+          { id: 'F2', fact: '实施条件' }
+        ],
         coverageChecklist: [
           { factId: 'F1', kept: true, evidence: '第1段保留背景信息' },
           { factId: 'F2', kept: false, evidence: '缺失实施条件' }
@@ -89,10 +93,24 @@ describe('RichTextToShots Component', () => {
 
     expect(screen.getByText(/文体: analysis/i)).toBeInTheDocument();
     expect(screen.getAllByText(/信息密度保持在可接受范围/i).length).toBeGreaterThan(0);
-    expect(screen.getByDisplayValue('预处理后稿件')).toBeInTheDocument();
+    expect(screen.getByText('预处理后稿件')).toBeInTheDocument();
     expect(screen.getByText(/原文（预处理输入）/i)).toBeInTheDocument();
     expect(screen.getByText(/信息覆盖率明细/i)).toBeInTheDocument();
-    expect(screen.getByText('F1')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'F1' })).toBeInTheDocument();
     expect(screen.getByText(/补回 F2 信息/)).toBeInTheDocument();
+    expect(screen.getByText(/第1段保留背景信息/)).toBeInTheDocument();
+    expect(screen.getByText(/证据定位词/i)).toBeInTheDocument();
+    expect(screen.getByText(/定位命中：原文/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('checkbox', { name: /只看缺失项/i }));
+
+    expect(screen.queryByText(/第1段保留背景信息/)).not.toBeInTheDocument();
+    expect(screen.getByText(/缺失实施条件/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'F2' }));
+
+    expect(screen.getByText(/当前事实点：/)).toBeInTheDocument();
+    expect(screen.getAllByText('实施条件').length).toBeGreaterThan(0);
+    expect(screen.getByText(/缺失实施条件/)).toBeInTheDocument();
   });
 });
