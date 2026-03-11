@@ -1682,3 +1682,16 @@ Date: 2026-03-01
   - Agent 02: UI 高亮与筛选功能已完成
   - Agent 03: 测试覆盖已验证通过
 - Status: ✅ Round 2 完成，等待用户下一步指令
+
+### [2026-03-11 23:38:00] agent-01-release-complete
+- Agent: Agent 01 (Release)
+- Task: 提交并推送 Round 2 变更
+- Changes:
+  - ✅ 提交：`d774305 feat: evidence normalization and highlight keywords fusion`
+  - ✅ 推送：main 分支已同步到 origin
+  - 变更内容：
+    - `src/utils/highlightUtils.ts` - 高亮词处理工具库
+    - `src/components/RichTextToShots.tsx` - 增强高亮与筛选功能
+    - `test/components/RichTextToShots.test.tsx` - 测试更新
+    - `.agentstalk` - 协作日志
+- Status: ✅ Round 2 发布完成
