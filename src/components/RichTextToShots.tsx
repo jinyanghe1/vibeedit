@@ -74,6 +74,7 @@ export function RichTextToShots() {
   const [repairedFactIds, setRepairedFactIds] = useState<string[]>([]);
   const [enableCoverageGate, setEnableCoverageGate] = useState(true);
   const [allowCoverageGateBypassOnce, setAllowCoverageGateBypassOnce] = useState(false);
+  const [allowImportGateBypassOnce, setAllowImportGateBypassOnce] = useState(false);
   const [draftSnapshots, setDraftSnapshots] = useState<DraftSnapshot[]>([]);
   const [activeSnapshotId, setActiveSnapshotId] = useState<string | null>(null);
 
@@ -131,15 +132,18 @@ export function RichTextToShots() {
     );
   }, [selectedFact?.fact, activeCoverageItem?.evidence, evidenceKeywords]);
   const coverageSummary = useMemo(() => summarizeCoverage(factFilteredCoverage), [factFilteredCoverage]);
-  /** F3: 覆盖率门禁——仅在启用门禁 + 使用预处理稿 + 有缺失时触发 */
-  const coverageGateTriggered = enableCoverageGate &&
+  /** F3/F4: 覆盖率风险条件（用于生成门禁与导入门禁） */
+  const coverageGateRiskPresent = enableCoverageGate &&
     usePreprocessedDraft &&
     hasFreshPreprocess &&
     coverageSummary.total > 0 &&
     coverageSummary.missingCount > 0 &&
     coverageSummary.keptRatio < COVERAGE_GATE_THRESHOLD &&
-    !(isRepairSnapshotActive || repairedDraftText) &&
-    !allowCoverageGateBypassOnce;
+    !(isRepairSnapshotActive || repairedDraftText);
+  /** F3: 生成门禁 */
+  const coverageGateTriggered = coverageGateRiskPresent && !allowCoverageGateBypassOnce;
+  /** F4: 导入门禁 */
+  const importGateTriggered = !!result && coverageGateRiskPresent && !allowImportGateBypassOnce;
   const visibleCoverageWithMatch = useMemo(
     () =>
       visibleCoverage.map((item) => ({
@@ -270,6 +274,7 @@ export function RichTextToShots() {
       setRepairedDraftText(null);
       setRepairedFactIds([]);
       setAllowCoverageGateBypassOnce(false);
+      setAllowImportGateBypassOnce(false);
       setPreprocessSourceMarkdown(markdown);
       appendDraftSnapshot('preprocess', preprocessed.preprocessedText, [], { reset: shouldResetSnapshots });
       return preprocessed;
@@ -292,9 +297,11 @@ export function RichTextToShots() {
 
   const handleGenerate = async () => {
     if (!hasContent) return;
+
     setIsGenerating(true);
     setProgress('');
     setResult(null);
+    setAllowImportGateBypassOnce(false);
 
     try {
       let markdownForGeneration = currentMarkdown;
@@ -387,8 +394,24 @@ export function RichTextToShots() {
     setProgress('已临时放行一次门禁校验，请再次点击“智能生成分镜”。');
   };
 
+  const handleBypassImportGateOnce = () => {
+    setAllowImportGateBypassOnce(true);
+    setProgress('已临时放行一次导入门禁，请再次点击“导入全部分镜”。');
+  };
+
   const handleImportAll = () => {
     if (!result) return;
+    if (importGateTriggered) {
+      setProgress(
+        `导入门禁已触发：当前覆盖率 ${Math.round(coverageSummary.keptRatio * 100)}%，低于阈值 ${Math.round(
+          COVERAGE_GATE_THRESHOLD * 100
+        )}%。请先补齐或点击“导入全部分镜（临时忽略门禁）”。`
+      );
+      return;
+    }
+    if (allowImportGateBypassOnce) {
+      setAllowImportGateBypassOnce(false);
+    }
     addShots(result.shots);
     setResult(null);
     setProgress('✅ 已导入全部分镜');
@@ -463,6 +486,7 @@ export function RichTextToShots() {
               onChange={(e) => {
                 setEnableCoverageGate(e.target.checked);
                 setAllowCoverageGateBypassOnce(false);
+                setAllowImportGateBypassOnce(false);
               }}
               className="rounded border-gray-700 bg-gray-900 text-amber-500 focus:ring-amber-500"
             />
@@ -832,6 +856,28 @@ export function RichTextToShots() {
             <p className="px-4 py-2 text-xs text-gray-400 border-b border-gray-800">
               {result.summary}
             </p>
+          )}
+
+          {importGateTriggered && (
+            <div
+              role="alert"
+              aria-label="导入门禁警告"
+              className="mx-4 mt-3 mb-1 bg-amber-500/10 border border-amber-500/30 rounded px-3 py-2 space-y-1.5"
+            >
+              <div className="text-xs text-amber-300 font-medium">
+                导入门禁：当前覆盖率 {Math.round(coverageSummary.keptRatio * 100)}%，低于阈值 {Math.round(COVERAGE_GATE_THRESHOLD * 100)}%
+              </div>
+              <div className="text-[11px] text-amber-400/80">
+                为避免低覆盖率分镜直接入库，已阻断导入。建议先补齐事实后重新生成。
+              </div>
+              <button
+                type="button"
+                onClick={handleBypassImportGateOnce}
+                className="text-[11px] px-2.5 py-1 rounded bg-gray-800 text-gray-200 border border-gray-700 hover:bg-gray-700 transition-colors"
+              >
+                导入全部分镜（临时忽略门禁）
+              </button>
+            </div>
           )}
 
           <div className="divide-y divide-gray-800 max-h-[300px] overflow-y-auto">

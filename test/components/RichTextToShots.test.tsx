@@ -230,4 +230,48 @@ describe('RichTextToShots Component', () => {
     expect(useEditorStore.getState().generateShotsFromRichText).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/覆盖率门禁已触发/)).toBeInTheDocument();
   });
+
+  it('blocks importing shots when gate triggered and supports one-time import bypass', async () => {
+    render(<RichTextToShots />);
+
+    const textarea = screen.getByLabelText('richtext-input');
+    await userEvent.type(textarea, '原稿件');
+    await userEvent.click(screen.getByRole('button', { name: /预处理稿件/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().preprocessRichTextForStoryboard).toHaveBeenCalledTimes(1);
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /继续生成（临时忽略门禁）/i }));
+    await userEvent.click(screen.getByRole('button', { name: /智能生成分镜/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().generateShotsFromRichText).toHaveBeenCalledTimes(1);
+    });
+
+    expect(screen.getByRole('alert', { name: /导入门禁警告/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /^导入全部分镜$/ }));
+
+    expect(useEditorStore.getState().addShots).not.toHaveBeenCalled();
+    expect(screen.getByText(/导入门禁已触发/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /导入全部分镜（临时忽略门禁）/i }));
+    await userEvent.click(screen.getByRole('button', { name: /^导入全部分镜$/ }));
+
+    expect(useEditorStore.getState().addShots).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText(/生成完成/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /继续生成（临时忽略门禁）/i }));
+    await userEvent.click(screen.getByRole('button', { name: /智能生成分镜/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().generateShotsFromRichText).toHaveBeenCalledTimes(2);
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /^导入全部分镜$/ }));
+
+    expect(useEditorStore.getState().addShots).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/导入门禁已触发/)).toBeInTheDocument();
+  });
 });

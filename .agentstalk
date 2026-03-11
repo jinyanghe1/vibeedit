@@ -2296,3 +2296,105 @@ Date: 2026-03-01
   - F4 候选：Coverage Gate 与镜头导入联动（低覆盖率禁止“导入全部分镜”）。
 - Risks/Notes:
   - 严格遵循压强原则：本轮仅交付 F3。
+
+### [2026-03-12 09:34:00] multi-agent-round-7-start-f4-only
+- Request/Goal:
+  - 用户要求继续推进；按压强原则进入 F4：Coverage Gate 与“导入全部分镜”联动。
+- Focus Rule:
+  - 单核心压强：本轮仅开发导入门禁，不并行新能力。
+- Minimal Scope:
+  - 当覆盖率门禁触发（<70% 且有缺失项）时，禁止“导入全部分镜”。
+  - 支持一次性放行导入：`导入全部分镜（临时忽略门禁）`。
+  - 一次性放行导入成功后自动失效。
+- Agent Split:
+  - Agent 01：导入门禁判定 + 一次性放行状态机。
+  - Agent 02：导入区 UI 文案/按钮联动。
+  - Agent 03：code review + test-case writing + 回归验收。
+- Acceptance SOP:
+  - 1) 低覆盖率下生成结果出现后，点击导入应被阻断并显示原因。
+  - 2) 点击临时放行后，再次点击导入应成功。
+  - 3) 放行只生效一次；下一次仍需重新放行或先补齐。
+- Risks/Notes:
+  - 仅拦截“导入全部分镜”，不影响预览与生成。
+
+### [2026-03-12 09:40:10] agent-01-round-7-complete
+- Agent: Agent 01 (Logic)
+- Request/Goal:
+  - 实现 F4 导入门禁判定与一次性放行状态机。
+- Changes:
+  - `src/components/RichTextToShots.tsx`
+    - 新增状态：`allowImportGateBypassOnce`。
+    - 抽离 `coverageGateRiskPresent` 作为生成/导入共用风险条件。
+    - 新增 `importGateTriggered`：`result` 存在且低覆盖率时触发导入阻断。
+    - `handleImportAll` 增加阻断逻辑与一次性放行消费逻辑。
+    - 预处理重跑、门禁开关切换、重新生成时重置导入临时放行状态。
+- Implemented:
+  - 低覆盖率结果默认不可导入；支持临时放行一次并自动失效。
+- Validation:
+  - 待 Agent 03 测试回归。
+- Risks/Notes:
+  - 仅作用于导入，不影响生成预览。
+
+### [2026-03-12 09:41:00] agent-02-round-7-complete
+- Agent: Agent 02 (UI)
+- Request/Goal:
+  - 完成 F4 导入门禁交互 UI。
+- Changes:
+  - `src/components/RichTextToShots.tsx`
+    - 在结果区新增 `导入门禁警告` 横幅（role=alert）。
+    - 新增按钮：`导入全部分镜（临时忽略门禁）`。
+    - 门禁文案明确覆盖率百分比、阈值和推荐动作。
+- Implemented:
+  - 用户在结果卡片可直观看到导入门禁原因并直接执行临时放行。
+- Validation:
+  - 待 Agent 03 测试回归。
+- Risks/Notes:
+  - 放行按钮只在导入门禁触发时可见。
+
+### [2026-03-12 09:49:30] round-7-blocker-and-fix
+- Request/Goal:
+  - 修复 F4 开发过程中的运行时阻塞，恢复门禁链路稳定性。
+- Failure Symptom:
+  - `RichTextToShots.tsx` 生成入口存在未定义变量 `gateBypassOnce/setGateBlocked` 残留分支，触发 `ReferenceError`。
+- Root Cause:
+  - 历史门禁草稿代码未完成清理，与当前 F3 状态命名不一致。
+- Mitigation:
+  - 删除无效分支，保留既有 `allowCoverageGateBypassOnce` 门禁逻辑。
+- Validation:
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/components/RichTextToShots.test.tsx -t "blocks generation when gate triggered and supports one-time bypass"`
+    - 修复前失败，修复后通过（已在全量组件用例复验）。
+- Risks/Notes:
+  - 已关闭运行时异常风险。
+
+### [2026-03-12 09:51:10] agent-03-round-7-review-and-qa
+- Agent: Agent 03 (Code Review + Test Cases)
+- Review Findings:
+  - F4 导入门禁实现满足“阻断导入 + 一次性放行 + 放行后自动失效”核心语义。
+  - 已验证导入门禁仅作用于导入动作，不影响生成与预览。
+- Test Cases Added/Updated:
+  - `test/components/RichTextToShots.test.tsx`
+    - 新增：`blocks importing shots when gate triggered and supports one-time import bypass`。
+    - 覆盖：门禁阻断、临时放行导入成功、放行消费后再次阻断。
+- Validation:
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/components/RichTextToShots.test.tsx test/utils/factRepairUtils.test.ts`
+    - 2 files, 9 tests, 全部通过。
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/store/editorStore.test.ts test/services/llmService.test.ts`
+    - 2 files, 40 tests, 全部通过。
+  - `npm run build`
+    - 构建通过（仅保留 chunk size warning）。
+- Risks/Notes:
+  - `llmService` fallback stderr 为既有预期日志，不影响结果。
+
+### [2026-03-12 09:52:00] multi-agent-round-7-acceptance-f4
+- Request/Goal:
+  - F4（Coverage Gate 与“导入全部分镜”联动）最终验收。
+- SOP Result:
+  - Step1 低覆盖率下点击“导入全部分镜”被阻断并展示原因：通过。
+  - Step2 点击“导入全部分镜（临时忽略门禁）”后再次导入成功：通过。
+  - Step3 放行仅生效一次；下一次导入需重新放行：通过。
+- Delivery:
+  - ✅ F4 最小可用版本完成。
+- Next Backlog (not started):
+  - F5 候选：导入前风险确认弹层（展示缺失事实清单 + 二次确认）以降低误导入概率。
+- Risks/Notes:
+  - 本轮遵循压强原则，仅交付 F4。
