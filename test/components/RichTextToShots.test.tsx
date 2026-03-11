@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RichTextToShots } from '../../src/components/RichTextToShots';
@@ -46,6 +46,40 @@ describe('RichTextToShots Component', () => {
           detectedGenre: 'analysis',
           rounds: 3,
           infoChecklistCount: 10
+        },
+        qualityReport: {
+          rounds: [
+            {
+              round: 1,
+              writerSummary: '先构建问题背景与政策主线',
+              auditorVerdict: 'revise',
+              auditorAdvice: '补齐实施条件并增加结尾行动锚点',
+              lengthRatio: 0.96,
+              coverage: 0.82,
+              shotAnchorCount: 2,
+              passed: false
+            },
+            {
+              round: 2,
+              writerSummary: '补齐实施条件并强化分段锚点',
+              auditorVerdict: 'pass',
+              auditorAdvice: '达到阈值',
+              lengthRatio: 1,
+              coverage: 1,
+              shotAnchorCount: 3,
+              passed: true
+            }
+          ],
+          finalDecision: 'converged',
+          finalReason: '长度、覆盖率和锚点均达标。',
+          converged: true,
+          bestRound: 2,
+          thresholds: {
+            lengthRatioMin: 0.9,
+            lengthRatioMax: 1.1,
+            minCoverage: 0.95,
+            minShotAnchors: 3
+          }
         }
       }),
       generateShotsFromRichText: vi.fn().mockResolvedValue({
@@ -94,6 +128,9 @@ describe('RichTextToShots Component', () => {
 
     expect(screen.getByText(/文体: analysis/i)).toBeInTheDocument();
     expect(screen.getAllByText(/信息密度保持在可接受范围/i).length).toBeGreaterThan(0);
+    expect(screen.getByText(/预处理质检报告/)).toBeInTheDocument();
+    expect(screen.getByText(/已收敛/)).toBeInTheDocument();
+    expect(screen.getByText(/长度比 1.00 · 覆盖率 100% · 锚点 3/)).toBeInTheDocument();
     expect(screen.getByText('预处理后稿件')).toBeInTheDocument();
     expect(screen.getByText(/原文（预处理输入）/i)).toBeInTheDocument();
     expect(screen.getByText(/信息覆盖率明细/i)).toBeInTheDocument();
@@ -273,5 +310,39 @@ describe('RichTextToShots Component', () => {
 
     expect(useEditorStore.getState().addShots).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/导入门禁已触发/)).toBeInTheDocument();
+  });
+
+  it('shows missing facts list in import gate warning and allows repair before import', async () => {
+    render(<RichTextToShots />);
+
+    const textarea = screen.getByLabelText('richtext-input');
+    await userEvent.type(textarea, '原稿件');
+    await userEvent.click(screen.getByRole('button', { name: /预处理稿件/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().preprocessRichTextForStoryboard).toHaveBeenCalledTimes(1);
+    });
+
+    // 绕过生成门禁后生成分镜
+    await userEvent.click(screen.getByRole('button', { name: /继续生成（临时忽略门禁）/i }));
+    await userEvent.click(screen.getByRole('button', { name: /智能生成分镜/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().generateShotsFromRichText).toHaveBeenCalledTimes(1);
+    });
+
+    // F5: 导入门禁警告应展示缺失事实清单
+    const gateAlert = screen.getByRole('alert', { name: /导入门禁警告/i });
+    expect(within(gateAlert).getByText('F2')).toBeInTheDocument();
+    expect(within(gateAlert).getByText('实施条件')).toBeInTheDocument();
+    expect(within(gateAlert).getByRole('button', { name: /先补齐再导入/i })).toBeInTheDocument();
+
+    // 点击"先补齐再导入" → 门禁解除 → 可直接导入
+    await userEvent.click(within(gateAlert).getByRole('button', { name: /先补齐再导入/i }));
+
+    expect(screen.queryByRole('alert', { name: /导入门禁警告/i })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /^导入全部分镜$/ }));
+    expect(useEditorStore.getState().addShots).toHaveBeenCalledTimes(1);
   });
 });

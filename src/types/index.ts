@@ -214,6 +214,33 @@ export interface ScriptGenerationResult {
   summary?: string;
 }
 
+export type PreprocessFinalDecision = 'converged' | 'usable' | 'unusable';
+
+export interface PreprocessQualityRound {
+  round: number;
+  writerSummary: string;
+  auditorVerdict: string;
+  auditorAdvice: string;
+  lengthRatio: number;
+  coverage: number;
+  shotAnchorCount: number;
+  passed: boolean;
+}
+
+export interface PreprocessQualityReport {
+  rounds: PreprocessQualityRound[];
+  finalDecision: PreprocessFinalDecision;
+  finalReason: string;
+  converged: boolean;
+  bestRound: number;
+  thresholds: {
+    lengthRatioMin: number;
+    lengthRatioMax: number;
+    minCoverage: number;
+    minShotAnchors: number;
+  };
+}
+
 // 富文本预处理结果
 export interface RichTextPreprocessResult {
   preprocessedText: string;
@@ -236,6 +263,7 @@ export interface RichTextPreprocessResult {
     rounds: number;
     infoChecklistCount: number;
   };
+  qualityReport?: PreprocessQualityReport;
 }
 
 // 互联网检索结果

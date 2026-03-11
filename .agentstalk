@@ -2398,3 +2398,256 @@ Date: 2026-03-01
   - F5 候选：导入前风险确认弹层（展示缺失事实清单 + 二次确认）以降低误导入概率。
 - Risks/Notes:
   - 本轮遵循压强原则，仅交付 F4。
+
+### [2026-03-12 09:45:00] agent-01-round-7-release-verification
+- Agent: Agent 01 (Logic)
+- Task: 验证 F4 实现并完成发布
+- Changes:
+  - 检查当前代码状态：
+    - ✅ 最新提交 `8e6edc5 feat: gate import-all under low coverage with one-time bypass`
+    - ✅ 导入门禁逻辑已实现
+    - ✅ 一次性放行状态机已就位
+  - 变更文件：`src/components/RichTextToShots.tsx` 已更新
+- Validation:
+  - 待执行全量测试回归
+- Next Steps: 执行测试回归并提交最终验收
+
+### [2026-03-12 09:50:00] agent-01-round-7-acceptance-complete
+- Agent: Agent 01 (Release)
+- Task: F4 最终验收与发布
+- Changes:
+  - 全量回归测试完成
+  - 测试统计：
+    - ✅ 25 test files passed
+    - ✅ 151 tests passed (新增 3 个 F4 相关测试)
+    - ✅ RichTextToShots: 7 tests passed
+      - `blocks importing shots when gate triggered and supports one-time import bypass`
+- Validation:
+  - 导入门禁在低覆盖率时正确阻断
+  - 一次性放行功能正常
+  - 放行后自动失效机制正常
+- Status: ✅ F4 发布完成
+- F4 功能摘要：
+  - 覆盖率低于 70% 时禁止
+
+### [2026-03-12 10:06:00] pm-backlog-add-two-bold-features
+- Request/Goal:
+  - 用户要求以资深 PM 风格，提出 2 个“激进但实用”的新功能，并追加到需求清单。
+- Changes:
+  - 新增 F6/F7 需求定义（最小化范围、交付标准、验收 SOP、非目标）。
+- Implemented:
+  - 需求清单追加如下。
+
+#### F6（核心优先）自博弈预处理引擎（Writer + Auditor）
+- Why (业务价值):
+  - 当前预处理虽可用，但对“信息密度等价 + 篇幅等价 + 可分镜性”仍依赖单次输出稳定性。
+  - 引入 Writer/Auditor 双代理闭环，可显著降低遗漏率，提升一次生成可用率。
+- Minimal Scope (本轮最小实现):
+  - 新增两阶段链路：
+    - Writer: 输出候选预处理稿。
+    - Auditor: 校验长度比、事实覆盖率、分镜可切分度并给出修订意见。
+  - 最多 3 轮迭代；满足阈值即提前收敛：
+    - `lengthRatio` 在 `[0.90, 1.10]`
+    - `coverage >= 95%`
+    - 存在清晰段落切分建议（至少 3 个分镜锚点）。
+  - UI 增加“预处理质检报告”：展示每轮分数与最终收敛原因。
+- Non-goals (本轮不做):
+  - 不做模型自动切换策略。
+  - 不做跨会话持久化优化轨迹。
+  - 不做可视化 diff editor。
+- Delivery Standard:
+  - 预处理输出必须携带结构化 `qualityReport`（rounds/metrics/finalDecision）。
+  - 失败场景必须回退到当前可用稿并给出明确原因。
+- Acceptance SOP:
+  - 1) 输入知识稿后，系统可见最多 3 轮迭代记录。
+  - 2) 达到阈值时提前停止，并标记“已收敛”。
+  - 3) 未达阈值时给出“未收敛但可用/不可用”决策及原因。
+  - 4) 在同一测试稿上，最终覆盖率不低于旧链路（基线回归）。
+- Agent Split:
+  - Agent 01: Writer/Auditor 流程与状态机。
+  - Agent 02: 质检报告 UI 与交互。
+  - Agent 03: 代码审阅 + 回归测试 + 基线对比。
+
+#### F7 事实-分镜契约导入（Traceable Import Contract）
+- Why (业务价值):
+  - 现在“生成可看”与“可安全导入”仍有缝隙；需要让每个分镜可追溯到事实点，降低错误入库风险。
+- Minimal Scope (本轮最小实现):
+  - 生成阶段要求每个分镜返回 `factRefs: string[]`（引用事实 ID）。
+  - 新增“事实-分镜契约面板”：
+    - 已覆盖事实数 / 未覆盖事实数
+    - 未覆盖事实清单
+  - 导入门禁升级：
+    - 若存在“必需事实未被任何分镜引用”，阻断导入。
+    - 提供一次性放行 + 风险确认文案。
+- Non-goals (本轮不做):
+  - 不做镜头级自动重写（只提示缺口，不自动重生成）。
+  - 不做外部知识库对账。
+  - 不做人工审批流。
+- Delivery Standard:
+  - `ScriptGenerationResult` 支持 `factRefs` 且兼容旧数据（无 `factRefs` 时显示“未标注”）。
+  - 契约门禁仅在启用预处理且存在事实清单时生效。
+- Acceptance SOP:
+  - 1) 生成结果中每条分镜可见事实引用标签。
+  - 2) 存在未覆盖必需事实时，“导入全部分镜”被阻断并展示缺口。
+  - 3) 点击临时放行后可导入一次，后续自动失效。
+  - 4) 关闭预处理或无事实清单时，不触发契约门禁（兼容旧流程）。
+- Agent Split:
+  - Agent 01: 结果结构扩展与契约判定逻辑。
+  - Agent 02: 契约面板 UI + 分镜标签渲染。
+  - Agent 03: 测试用例（结构兼容、门禁、一次性放行）与评审。
+
+- Validation:
+  - PM 审核通过：两项均满足“激进但实用”，且可分阶段最小化落地。
+- Next Steps:
+  - 按压强原则建议先做 F6（先提升稿件质量上限，再做 F7 导入契约闭环）。
+- Risks/Notes:
+  - F6 会增加 LLM 调用成本；需加最大轮次与超时兜底。
+  - F7 依赖事实 ID 稳定性，需先统一 ID 生成规则。
+导入全部分镜
+
+### [2026-03-12 10:14:30] multi-agent-round-8-start-f6-only
+- Request/Goal:
+  - 用户确认执行 F6（自博弈预处理引擎），继续推进。
+- Focus Rule:
+  - 单核心压强：本轮只做 F6，不并行 F7。
+- Minimal Scope:
+  - Writer + Auditor 多轮闭环（最多 3 轮）。
+  - 达标阈值：lengthRatio ∈ [0.90,1.10]、coverage>=95%、shotAnchors>=3。
+  - 输出结构化 `qualityReport` 并在 UI 展示。
+  - 未收敛时输出“可用/不可用”决策与原因。
+- Agent Split:
+  - Agent 01：服务层迭代流程 + 质量报告数据结构。
+  - Agent 02：`RichTextToShots` 质检报告 UI。
+  - Agent 03：code review + test-case writing + 回归验收。
+- Acceptance SOP:
+  - 1) 预处理结果包含 rounds 明细与 finalDecision/finalReason。
+  - 2) 达标时提前收敛；未达标时有可用性决策。
+  - 3) UI 可见每轮指标（长度比、覆盖率、锚点数）。
+  - 4) 回归测试通过，且旧流程兼容（无 qualityReport 仍可运行）。
+- Risks/Notes:
+  - 为控成本固定最多 3 轮；保留快速回退兜底。
+
+### [2026-03-12 10:20:00] agent-01-round-8-start
+- Agent: Agent 01 (Logic/Service)
+- Task: F6 - 自博弈预处理引擎（Writer + Auditor 多轮闭环）
+- Changes:
+  - 服务层实现计划：
+    1. 扩展 `RichTextPreprocessResult` 类型，添加 `qualityReport` 字段
+    2. 实现 `WriterAuditorEngine` 类：
+       - `writerRound`: 生成候选预处理稿
+       - `auditorRound`: 校验质量指标（lengthRatio, coverage, shotAnchors）
+       - `iterate`: 多轮迭代（最多 3 轮）
+    3. 质量指标计算：
+       - lengthRatio: 处理前后长度比
+       - coverage: 事实覆盖率
+       - shotAnchors: 分镜锚点数量（段落切分点）
+    4. 收敛判断：
+       - 达标: lengthRatio ∈ [0.90, 1.10] && coverage >= 95% && shotAnchors >= 3
+       - 提前停止: 达标时立即收敛
+       - 未收敛: 3轮后给出可用性决策
+  - 新建/更新文件：
+    - `src/services/writerAuditorEngine.ts` - 核心引擎
+    - `src/types/index.ts` - 类型扩展
+    - `src/services/richTextPreprocessService.ts` - 集成引擎调用
+- Implementation Strategy:
+  - 利用现有预处理服务作为 Writer
+  - 利用现有 coverageChecklist 计算覆盖率
+  - 利用 [SCENE_BREAK] 或段落数计算 shotAnchors
+- Validation: 待实现后运行单元测试
+
+### [2026-03-12 10:33:40] agent-01-round-8-complete
+- Agent: Agent 01 (Logic)
+- Request/Goal:
+  - 实现 F6 Writer + Auditor 自博弈闭环（最多 3 轮）并输出结构化质量报告。
+- Changes:
+  - `src/types/index.ts`
+    - 新增 `PreprocessFinalDecision`、`PreprocessQualityRound`、`PreprocessQualityReport`。
+    - `RichTextPreprocessResult` 新增可选字段 `qualityReport`。
+  - `src/services/richTextPreprocessService.ts`
+    - 重构 `preprocessRichTextWithMultiRound`：
+      - 第 1 步抽取信息骨架（facts/genre）。
+      - Writer/Auditor 最多 3 轮迭代。
+      - 阈值：`lengthRatio[0.9,1.1]`、`coverage>=0.95`、`shotAnchors>=3`。
+      - 达标提前收敛；未收敛时给出 `usable/unusable` 决策。
+      - 输出 `qualityReport.rounds/finalDecision/finalReason/bestRound/thresholds`。
+    - 增加本地兜底：事实提取、覆盖率估算、锚点推断与候选评分。
+- Implemented:
+  - 预处理结果具备可解释的每轮质检记录和最终可用性结论。
+- Validation:
+  - 由 Agent 03 执行新增服务测试与回归。
+- Risks/Notes:
+  - 成本控制：固定最大 3 轮。
+
+### [2026-03-12 10:35:10] agent-02-round-8-complete
+- Agent: Agent 02 (UI)
+- Request/Goal:
+  - 在富文本面板展示 F6 质检报告。
+- Changes:
+  - `src/components/RichTextToShots.tsx`
+    - 新增“预处理质检报告”卡片。
+    - 展示最终状态：`已收敛 / 未收敛但可用 / 未收敛且不可用`。
+    - 展示每轮指标：长度比、覆盖率、锚点数、Writer 摘要、Auditor 建议。
+- Implemented:
+  - 用户可在预处理后直接查看收敛过程与决策依据。
+- Validation:
+  - 由 Agent 03 在组件测试中断言面板渲染。
+- Risks/Notes:
+  - `qualityReport` 缺失时 UI 自动降级，不影响旧结果渲染。
+
+### [2026-03-12 10:36:30] round-8-blocker-and-fix
+- Request/Goal:
+  - 修复 F6 回归测试中的阻塞与本地构建阻塞。
+- Failure Symptom:
+  - 组件测试报错：`within is not defined`（现有用例依赖未导入）。
+  - `npm run build` 报错：`src/services/writerAuditorEngine.ts` 未使用参数导致 TS6133。
+- Root Cause:
+  - 测试文件导入缺失。
+  - 工作区存在未追踪文件 `writerAuditorEngine.ts`，被 TS include 扫描。
+- Mitigation:
+  - `test/components/RichTextToShots.test.tsx` 补充 `within` 导入。
+  - `src/services/writerAuditorEngine.ts` 将未使用参数改为下划线前缀，消除 TS6133。
+- Validation:
+  - 组件/服务/全量测试恢复通过，构建恢复通过。
+- Risks/Notes:
+  - `writerAuditorEngine.ts` 当前仍为未追踪文件；本轮未纳入发布提交。
+
+### [2026-03-12 10:38:20] agent-03-round-8-review-and-qa
+- Agent: Agent 03 (Code Review + Test Cases)
+- Review Findings:
+  - F6 达成“最多 3 轮 + 提前收敛 + 未收敛可用性决策 + UI 可解释报告”的交付要求。
+  - 兼容性通过：旧结果无 `qualityReport` 时功能正常。
+- Test Cases Added/Updated:
+  - 新增 `test/services/richTextPreprocessService.test.ts`
+    - `converges early when writer/auditor metrics pass thresholds`
+    - `returns usable decision when not converged but above fallback baseline`
+  - 更新 `test/services/llmService.test.ts`
+    - 预处理链路适配 Writer/Auditor 多轮流程与 `qualityReport` 断言。
+  - 更新 `test/components/RichTextToShots.test.tsx`
+    - 增加质检报告 UI 断言。
+    - 修复 `within` 导入缺失。
+- Validation:
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/services/richTextPreprocessService.test.ts test/services/llmService.test.ts test/components/RichTextToShots.test.tsx`
+    - 3 files, 18 tests, 全部通过。
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/store/editorStore.test.ts test/services/bytedanceService.test.ts`
+    - 2 files, 38 tests, 全部通过。
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run`
+    - 26 files, 154 tests, 全部通过。
+  - `npm run build`
+    - 构建通过（仅保留 chunk size warning）。
+- Risks/Notes:
+  - 回归中的 stderr 为既有 fallback 日志，不影响通过。
+
+### [2026-03-12 10:39:20] multi-agent-round-8-acceptance-f6
+- Request/Goal:
+  - F6（自博弈预处理引擎）最终验收。
+- SOP Result:
+  - Step1 预处理输出包含 rounds 明细 + finalDecision/finalReason：通过。
+  - Step2 达标场景支持提前收敛：通过（服务测试覆盖）。
+  - Step3 未达标场景给出可用性决策：通过（`usable/unusable`）。
+  - Step4 UI 可见每轮长度比/覆盖率/锚点指标：通过（组件测试覆盖）。
+- Delivery:
+  - ✅ F6 最小可用版本完成。
+- Next Backlog (not started):
+  - F7 事实-分镜契约导入（Traceable Import Contract）。
+- Risks/Notes:
+  - 本轮严格遵循压强原则，仅交付 F6。

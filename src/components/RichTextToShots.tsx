@@ -501,6 +501,47 @@ export function RichTextToShots() {
             </div>
             <p className="text-xs text-gray-300">{preprocessResult.summary}</p>
 
+            {preprocessResult.qualityReport && (
+              <div className="bg-gray-950/80 border border-gray-800 rounded p-2 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] text-gray-500">预处理质检报告</div>
+                  <span className={`text-[11px] px-2 py-0.5 rounded border ${
+                    preprocessResult.qualityReport.finalDecision === 'converged'
+                      ? 'border-green-500/40 text-green-300 bg-green-500/10'
+                      : preprocessResult.qualityReport.finalDecision === 'usable'
+                        ? 'border-amber-500/40 text-amber-300 bg-amber-500/10'
+                        : 'border-red-500/40 text-red-300 bg-red-500/10'
+                  }`}>
+                    {preprocessResult.qualityReport.finalDecision === 'converged'
+                      ? '已收敛'
+                      : preprocessResult.qualityReport.finalDecision === 'usable'
+                        ? '未收敛但可用'
+                        : '未收敛且不可用'}
+                  </span>
+                </div>
+                <div className="text-[11px] text-gray-400">
+                  结论：{preprocessResult.qualityReport.finalReason}
+                </div>
+                <div className="space-y-1">
+                  {preprocessResult.qualityReport.rounds.map((round) => (
+                    <div key={round.round} className="text-[11px] rounded border border-gray-800 bg-gray-900 px-2 py-1.5 space-y-0.5">
+                      <div className="flex items-center justify-between text-gray-300">
+                        <span>第 {round.round} 轮</span>
+                        <span className={round.passed ? 'text-green-300' : 'text-amber-300'}>
+                          {round.passed ? '达标' : '待修订'}
+                        </span>
+                      </div>
+                      <div className="text-gray-500">
+                        长度比 {round.lengthRatio.toFixed(2)} · 覆盖率 {Math.round(round.coverage * 100)}% · 锚点 {round.shotAnchorCount}
+                      </div>
+                      <div className="text-gray-400">Writer: {round.writerSummary}</div>
+                      <div className="text-gray-500">Auditor: {round.auditorAdvice}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div className="space-y-1">
                 <div className="text-[11px] text-gray-500">原文（预处理输入）</div>
@@ -862,21 +903,44 @@ export function RichTextToShots() {
             <div
               role="alert"
               aria-label="导入门禁警告"
-              className="mx-4 mt-3 mb-1 bg-amber-500/10 border border-amber-500/30 rounded px-3 py-2 space-y-1.5"
+              className="mx-4 mt-3 mb-1 bg-amber-500/10 border border-amber-500/30 rounded px-3 py-2.5 space-y-2"
             >
-              <div className="text-xs text-amber-300 font-medium">
-                导入门禁：当前覆盖率 {Math.round(coverageSummary.keptRatio * 100)}%，低于阈值 {Math.round(COVERAGE_GATE_THRESHOLD * 100)}%
+              <div className="text-xs text-amber-300 font-medium flex items-center gap-1.5">
+                <span>⚠️</span>
+                <span>导入门禁：当前覆盖率 {Math.round(coverageSummary.keptRatio * 100)}%，低于阈值 {Math.round(COVERAGE_GATE_THRESHOLD * 100)}%</span>
               </div>
-              <div className="text-[11px] text-amber-400/80">
-                为避免低覆盖率分镜直接入库，已阻断导入。建议先补齐事实后重新生成。
+              {/* F5: 缺失事实清单 */}
+              {missingFacts.length > 0 && (
+                <div className="space-y-1">
+                  <div className="text-[11px] text-amber-400/80">以下事实点将不体现在导入的分镜中：</div>
+                  <ul className="space-y-0.5">
+                    {missingFacts.map((mf) => (
+                      <li key={mf.id} className="flex items-start gap-1.5 text-[11px] text-amber-400/90">
+                        <span className="shrink-0 font-mono bg-amber-500/15 px-1 rounded text-amber-400">{mf.id}</span>
+                        <span>{mf.fact}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {missingFacts.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleRepairMissingFacts}
+                    className="text-[11px] px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors"
+                  >
+                    先补齐再导入
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleBypassImportGateOnce}
+                  className="text-[11px] px-2.5 py-1 rounded bg-gray-800 text-gray-200 border border-gray-700 hover:bg-gray-700 transition-colors"
+                >
+                  导入全部分镜（临时忽略门禁）
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleBypassImportGateOnce}
-                className="text-[11px] px-2.5 py-1 rounded bg-gray-800 text-gray-200 border border-gray-700 hover:bg-gray-700 transition-colors"
-              >
-                导入全部分镜（临时忽略门禁）
-              </button>
             </div>
           )}
 
