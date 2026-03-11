@@ -2814,3 +2814,24 @@ Date: 2026-03-01
   - F8 候选：导入后契约回执（保存导入时 fact coverage 快照用于回溯）。
 - Risks/Notes:
   - 契约完整性仍依赖模型输出与关键词推断质量，后续可引入结构化强约束提示词。
+
+### [2026-03-12 10:55:00] agent-01-round-9-complete
+- Agent: Agent 01 (Logic)
+- Task: F7 - 事实-分镜契约导入（核心逻辑）
+- Changes:
+  - 新建 `src/utils/factContractUtils.ts`：
+    - ✅ `computeFactCoverage` - 计算事实覆盖情况
+    - ✅ `checkImportContract` - 检查导入契约
+    - ✅ `shouldTriggerContractGate` - 判断是否触发契约门禁
+    - ✅ `getContractRiskSummary` - 生成风险摘要
+    - ✅ `computeContractScore` - 计算契约质量评分
+  - 类型定义已就绪：`ScriptShotData.factRefs` 已存在
+  - LLM Prompt 已包含 factRefs 要求
+- Validation:
+  - `factContractUtils.test.ts` - 17 tests passed
+  - 全量测试：27 files, 173 tests passed
+  - 构建成功
+- Status: ✅ Agent 01 Round 9 逻辑层完成
+- Notes:
+  - 契约门禁逻辑已就绪，等待 Agent 02 UI 集成
+  - 支持风险等级判定（none/low/medium/high）
