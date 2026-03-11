@@ -24,3 +24,15 @@ dist-ssr
 *.sw?
 
 .agentstalk/*
+# Test coverage
+coverage/
+
+# Agent workspace files
+.cursor/
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS files
+Thumbs.db
