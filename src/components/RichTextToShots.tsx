@@ -7,6 +7,31 @@ import { serializeToMarkdown, serializeToPlainText } from '../utils/slateSeriali
 import { RichTextEditor, createInitialValue } from './RichTextEditor';
 import { ToneSelector } from './ToneSelector';
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function HighlightedText({ text, keyword }: { text: string; keyword?: string }) {
+  if (!keyword?.trim()) {
+    return <span>{text}</span>;
+  }
+
+  const parts = text.split(new RegExp(`(${escapeRegExp(keyword.trim())})`, 'gi'));
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.toLowerCase() === keyword.trim().toLowerCase() ? (
+          <mark key={`${part}-${index}`} className="bg-yellow-500/30 text-yellow-100 rounded px-0.5">
+            {part}
+          </mark>
+        ) : (
+          <span key={`${part}-${index}`}>{part}</span>
+        )
+      )}
+    </>
+  );
+}
+
 export function RichTextToShots() {
   const [editorValue, setEditorValue] = useState<Descendant[]>(createInitialValue());
   const [toneConfig, setToneConfig] = useState<ToneConfig>({
@@ -24,6 +49,7 @@ export function RichTextToShots() {
   const [preprocessSourceMarkdown, setPreprocessSourceMarkdown] = useState('');
   const [usePreprocessedDraft, setUsePreprocessedDraft] = useState(true);
   const [showToneSelector, setShowToneSelector] = useState(true);
+  const [selectedFactId, setSelectedFactId] = useState<string>('all');
 
   const { generateShotsFromRichText, preprocessRichTextForStoryboard, addShots, hasLLMConfig } = useEditorStore();
 
@@ -31,6 +57,12 @@ export function RichTextToShots() {
   const currentMarkdown = serializeToMarkdown(editorValue);
   const hasFreshPreprocess = !!preprocessResult && preprocessSourceMarkdown === currentMarkdown;
   const hasContent = plainText.trim().length > 0;
+  const selectedFact = selectedFactId === 'all'
+    ? undefined
+    : preprocessResult?.detectedFacts?.find((fact) => fact.id === selectedFactId);
+  const filteredCoverage = preprocessResult?.coverageChecklist?.filter((item) =>
+    selectedFactId === 'all' ? true : item.factId === selectedFactId
+  );
 
   const runPreprocess = async (markdown: string): Promise<RichTextPreprocessResult> => {
     setIsPreprocessing(true);
@@ -39,6 +71,7 @@ export function RichTextToShots() {
         setProgress(msg);
       });
       setPreprocessResult(preprocessed);
+      setSelectedFactId('all');
       setPreprocessSourceMarkdown(markdown);
       return preprocessed;
     } finally {
@@ -167,11 +200,88 @@ export function RichTextToShots() {
               文体: {preprocessResult.metadata.detectedGenre} | 长度: {preprocessResult.metadata.originalLength} → {preprocessResult.metadata.processedLength}（比例 {preprocessResult.metadata.lengthRatio.toFixed(2)}）
             </div>
             <p className="text-xs text-gray-300">{preprocessResult.summary}</p>
-            <textarea
-              readOnly
-              value={preprocessResult.preprocessedText}
-              className="w-full h-28 px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-gray-300 resize-y focus:outline-none"
-            />
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <div className="text-[11px] text-gray-500">原文（预处理输入）</div>
+                <div className="w-full h-28 px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-gray-400 overflow-auto whitespace-pre-wrap">
+                  <HighlightedText text={preprocessSourceMarkdown} keyword={selectedFact?.fact} />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-[11px] text-gray-500">预处理稿件（用于分镜生成）</div>
+                <div className="w-full h-28 px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-gray-300 overflow-auto whitespace-pre-wrap">
+                  <HighlightedText text={preprocessResult.preprocessedText} keyword={selectedFact?.fact} />
+                </div>
+              </div>
+            </div>
+
+            {(preprocessResult.coverageChecklist?.length || preprocessResult.detectedFacts?.length || preprocessResult.adjustments?.length) ? (
+              <div className="bg-gray-950/80 border border-gray-800 rounded p-2 space-y-2">
+                <div className="text-[11px] text-gray-500">信息覆盖率明细</div>
+
+                {preprocessResult.detectedFacts && preprocessResult.detectedFacts.length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[11px] text-gray-500">按事实点筛选</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFactId('all')}
+                        className={`text-[11px] px-2 py-0.5 rounded border ${selectedFactId === 'all' ? 'border-blue-400 bg-blue-500/20 text-blue-300' : 'border-gray-700 bg-gray-900 text-gray-400'}`}
+                      >
+                        全部
+                      </button>
+                      {preprocessResult.detectedFacts.map((fact) => (
+                        <button
+                          key={fact.id}
+                          type="button"
+                          onClick={() => setSelectedFactId(fact.id)}
+                          className={`text-[11px] px-2 py-0.5 rounded border ${selectedFactId === fact.id ? 'border-blue-400 bg-blue-500/20 text-blue-300' : 'border-gray-700 bg-gray-900 text-gray-400'}`}
+                        >
+                          {fact.id}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedFact && (
+                      <div className="text-xs text-gray-400">
+                        当前事实点：<span className="text-gray-200">{selectedFact.fact}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {filteredCoverage && filteredCoverage.length > 0 && (
+                  <ul className="space-y-1">
+                    {filteredCoverage.map((item) => (
+                      <li key={item.factId} className="text-xs text-gray-300 flex items-start gap-2">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${item.kept ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {item.kept ? '保留' : '缺失'}
+                        </span>
+                        <span className="text-gray-400 min-w-[42px]">{item.factId}</span>
+                        <span className="text-gray-300">{item.evidence || '未提供证据说明'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {selectedFactId !== 'all' && (!filteredCoverage || filteredCoverage.length === 0) && (
+                  <div className="text-xs text-gray-500">当前事实点暂无覆盖明细。</div>
+                )}
+
+                {preprocessResult.adjustments && preprocessResult.adjustments.length > 0 && (
+                  <div>
+                    <div className="text-[11px] text-gray-500 mb-1">校准动作</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {preprocessResult.adjustments.map((adj, idx) => (
+                        <span key={`${adj}-${idx}`} className="text-[11px] bg-blue-500/15 text-blue-300 px-2 py-0.5 rounded">
+                          {adj}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
         )}
       </div>

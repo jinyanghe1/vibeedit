@@ -219,6 +219,13 @@ ${rewrittenText}
   return {
     preprocessedText: finalText,
     summary: summarySegments.join(' '),
+    coverageChecklist: (round2?.coverageChecklist || []).map((item, index) => ({
+      factId: item.factId || facts[index]?.id || `F${index + 1}`,
+      kept: !!item.kept,
+      evidence: item.evidence
+    })),
+    detectedFacts: facts,
+    adjustments: round3?.adjustments || [],
     metadata: {
       originalLength: normalizedInput.length,
       processedLength,
@@ -274,6 +281,9 @@ export class RichTextPreprocessService {
     return {
       preprocessedText: preprocessedText || markdown,
       summary: '快速预处理完成（结构清理 + 段落归一化）。',
+      coverageChecklist: [],
+      detectedFacts: [],
+      adjustments: ['未启用多轮 LLM 预处理，已使用快速清理模式'],
       metadata: {
         originalLength,
         processedLength,

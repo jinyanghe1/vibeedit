@@ -1401,3 +1401,116 @@ Date: 2026-03-01
   - 执行 git add/commit/push，随后启动下一步更新开发。
 - Risks/Notes:
   - `.exampledocument*` 为输入样例，不纳入本次代码发布。
+
+### [2026-03-11 23:01:20] multi-agent-next-update-round-1-start
+- Request/Goal: 在完成发布后继续“下一步更新”，增强富文本预处理的可解释性：预处理前后对照 + 信息覆盖率明细。
+- Changes:
+  - Agent 01 任务：扩展预处理结果数据结构（输出 coverage/adjustment 明细），并更新服务层与测试。
+  - Agent 02 任务：在 `RichTextToShots` 中新增可视化对照区（原文 vs 预处理文）和信息点明细列表。
+  - 主协调 Agent：整合两路改动并执行定向/全量验收。
+- Implemented:
+  - 已确认本轮实现范围不涉及接口协议变更，仅前端内部数据结构增强。
+- Validation:
+  - 待实现后执行 `RichTextToShots`、`llmService`、`editorStore` 定向测试与全量回归。
+- Next Steps:
+  - 1) Agent 01 先改 service/types；2) Agent 02 接 UI；3) 回归验收。
+- Risks/Notes:
+  - 需兼容 LLM 返回非 JSON 或字段缺失场景，UI 必须具备空数据降级展示。
+
+### [2026-03-11 23:03:30] agent-02-round-1-complete
+- Agent: Agent 02 (UI + Test)
+- Request/Goal: 完成“预处理前后对照 + 信息覆盖率明细”前端交互增强，并动态维护 `.agentstalk`。
+- Changes:
+  - `src/components/RichTextToShots.tsx`
+    - 在预处理结果区新增“原文（预处理输入）/预处理稿件（用于分镜生成）”双栏对照视图。
+    - 新增“信息覆盖率明细”展示：覆盖项保留/缺失标签、factId、evidence。
+    - 新增“校准动作”标签展示（当存在 adjustments 时显示）。
+    - 对缺失字段做空值降级，不阻断原有流程。
+  - `src/types/index.ts`
+    - 扩展 `RichTextPreprocessResult`：新增可选 `coverageChecklist` / `detectedFacts` / `adjustments` 字段。
+  - `src/services/richTextPreprocessService.ts`
+    - 多轮预处理返回补充覆盖明细与校准动作；快速模式返回空明细 + 默认调整说明。
+  - `test/components/RichTextToShots.test.tsx`
+    - 补充对照与明细断言：原文区、覆盖率区、factId 与 adjustment 显示。
+- Implemented:
+  - agent02 任务完成：预处理结果从“仅摘要”升级为“可解释结果”（对照 + 覆盖率 + 调整轨迹）。
+- Validation:
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/components/RichTextToShots.test.tsx` -> 2 tests passed。
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/services/llmService.test.ts` -> 8 tests passed。
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/store/editorStore.test.ts` -> 32 tests passed。
+- Next Steps:
+  - 等待 Agent 01 的服务端/协议侧进一步增强后，agent02 可追加“事实点过滤与差异高亮”细化交互。
+- Risks/Notes:
+  - 本轮未改变分镜生成主逻辑，仅增强预处理结果可解释性与可观测性。
+
+### [2026-03-11 23:05:00] agent-01-release-complete
+- Agent: Agent 01 (Release)
+- Task: 发布封版核对与确认
+- Changes:
+  - 核对最新提交：`10ed4ca feat: add multi-round rich text preprocessing workflow`
+  - 提交内容验证：
+    - ✅ `src/services/richTextPreprocessService.ts` - 多轮预处理服务 (304 lines)
+    - ✅ `src/services/llmService.ts` - LLM 服务扩展
+    - ✅ `src/services/bytedanceService.ts` - ByteDance 服务扩展
+    - ✅ `src/store/editorStore.ts` - Store 接入预处理
+    - ✅ `src/components/RichTextToShots.tsx` - UI 组件更新
+    - ✅ `src/types/index.ts` - 类型定义扩展
+    - ✅ `test/` - 测试覆盖补充
+    - ✅ `.agentstalk` - 协作日志 (225 lines)
+  - 未纳入文件：`.exampledocument01`, `.exampledocument02`（按约定不发布）
+- Validation:
+  - Git 状态：`main` 分支与 `origin/main` 同步
+  - 工作区：仅两个示例文档未跟踪，符合预期
+- Status: ✅ 发布已完成，代码已推送
+- Next Steps: 等待用户下一步指令（预处理增强功能或其他需求）
+
+### [2026-03-11 23:10:00] agent-01-next-update-start
+- Agent: Agent 01 (Service Layer)
+- Task: 扩展预处理结果数据结构，添加 coverage/adjustment 明细
+- Changes:
+  - 计划更新 `src/types/index.ts`：扩展 RichTextPreprocessResult 类型，添加 coverage 和 adjustment 明细
+  - 计划更新 `src/services/richTextPreprocessService.ts`：在预处理流程中提取并输出 coverage/adjustment 信息
+  - 计划更新相关测试
+- Implemented: 开始实施
+- Validation: 待实现后执行定向测试
+- Next Steps: 1) 更新类型；2) 更新服务；3) 更新测试；4) 回归验证
+
+### [2026-03-11 23:12:00] agent-01-next-update-complete
+- Agent: Agent 01 (Service Layer)
+- Task: 扩展预处理结果数据结构（coverage/adjustment 明细）
+- Changes:
+  - 审核现有实现：
+    - ✅ `src/types/index.ts` - RichTextPreprocessResult 类型已包含 coverageChecklist、detectedFacts、adjustments 字段
+    - ✅ `src/services/richTextPreprocessService.ts` - 服务层已在三阶段处理中输出这些明细
+      - Round 1: 提取 coreFacts 作为 detectedFacts
+      - Round 2: 输出 coverageChecklist（事实点保留状态及证据）
+      - Round 3: 输出 adjustments（校准调整说明）
+  - 验证测试覆盖：
+    - ✅ `test/components/RichTextToShots.test.tsx` - 覆盖 coverageChecklist 和 adjustments
+    - ✅ `test/services/llmService.test.ts` - 覆盖预处理服务调用
+    - ✅ `test/store/editorStore.test.ts` - 覆盖 Store 路由
+- Validation:
+  - 定向测试：`RichTextToShots` + `llmService` + `editorStore` = 3 files, 42 tests, 全部通过
+  - 数据结构验证：coverageChecklist 包含 factId/kept/evidence，adjustments 为字符串数组
+- Status: ✅ Agent 01 任务完成
+- Notes:
+  - 服务层已完整支持 coverage/adjustment 明细输出
+  - 类型定义与实现已对齐，Agent 02 可直接使用这些字段进行 UI 展示
+
+### [2026-03-11 23:15:00] agent-01-verification-and-commit
+- Agent: Agent 01 (Release)
+- Task: 验证 Agent 02 UI 增强并提交发布
+- Changes:
+  - 验证 Agent 02 完成的 UI 增强：
+    - ✅ 原文 vs 预处理稿件对照视图（双栏 textarea）
+    - ✅ 信息覆盖率明细展示（coverageChecklist 保留/缺失状态）
+    - ✅ 校准动作标签展示（adjustments）
+  - 代码变更审核：
+    - `src/components/RichTextToShots.tsx` - UI 增强 (+57 lines)
+    - `src/types/index.ts` - 类型补充
+    - `src/services/richTextPreprocessService.ts` - 服务层微调
+    - `test/components/RichTextToShots.test.tsx` - 测试更新
+- Validation:
+  - `npm run build` - 构建成功（仅既有警告）
+  - `RichTextToShots.test.tsx` - 2 tests 全部通过
+- Next Steps: 执行 git commit & push 完成发布

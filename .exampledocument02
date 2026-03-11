@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>制度环境与证券监管 - 交互式深度解读</title>
+    
+    <!-- Plotly.js -->
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    
+    <!-- MathJax -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['\\(', '\\)']],
+                displayMath: [['\\[', '\\]']],
+                processEscapes: true,
+                processEnvironments: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+            }
+        };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #64748b;
+            --accent-color: #f59e0b;
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --border-color: #e2e8f0;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #3b82f6;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.8;
+        }
+        
+        /* Home Button */
+        .home-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #2563eb 0%, #3730a3 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            box-shadow: 0 4px 15px rgba(37, 99, 235, 0.3);
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .home-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(37, 99, 235, 0.4);
+            background: linear-gradient(135deg, #1d4ed8 0%, #312e81 100%);
+        }
+        
+        .home-button svg {
+            stroke: white;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 100%);
+            color: white;
+            padding: 60px 40px;
+            border-radius: 16px;
+            margin-bottom: 40px;
+            box-shadow: 0 20px 40px rgba(30, 58, 138, 0.2);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+        
+        .header .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 24px;
+        }
+        
+        .header .meta {
+            display: flex;
+            gap: 24px;
+            flex-wrap: wrap;
+            font-size: 0.95rem;
+        }
+        
+        .header .meta span {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* Section Styles */
+        .section {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 40px;
+            margin-bottom: 32px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+        }
+        
+        .section-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 3px solid var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .section-title .icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+        
+        /* Info Boxes */
+        .info-box {
+            padding: 24px;
+            border-radius: 12px;
+            margin: 20px 0;
+            border-left: 4px solid;
+        }
+        
+        .info-box.concept {
+            background: #eff6ff;
+            border-color: var(--info-color);
+        }
+        
+        .info-box.formula {
+            background: #fefce8;
+            border-color: var(--warning-color);
+        }
+        
+        .info-box.findings {
+            background: #f0fdf4;
+            border-color: var(--success-color);
+        }
+        
+        .info-box.warning {
+            background: #fef2f2;
+            border-color: var(--danger-color);
+        }
+        
+        .info-box-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* Grid Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+            margin: 24px 0;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 24px;
+            transition: all 0.3s ease;
+        }
+        
+        .card:hover {
+            box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+        
+        .card-title {
+            font-weight: 700;
+            font-size: 1.1rem;
+            margin-bottom: 12px;
+            color: var(--primary-color);
+        }
+        
+        /* Sliders */
+        .slider-container {
+            margin: 20px 0;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 12px;
+        }
+        
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #e2e8f0;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.4);
+        }
+        
+        /* Chart Containers */
+        .chart-container {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 2px;
+            flex-wrap: wrap;
+        }
+        
+        .tab {
+            padding: 12px 24px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            border-radius: 8px 8px 0 0;
+            transition: all 0.3s ease;
+        }
+        
+        .tab.active {
+            color: var(--primary-color);
+            background: #eff6ff;
+            border-bottom: 3px solid var(--primary-color);
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Formula Display */
+        .formula-display {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 24px;
+            border-radius: 12px;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+        
+        /* Hypothesis Box */
+        .hypothesis {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 2px solid #0ea5e9;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 16px 0;
+        }
+        
+        .hypothesis-title {
+            font-weight: 700;
+            color: #0369a1;
+            margin-bottom: 8px;
+        }
+        
+        /* Result indicator */
+        .result-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        
+        .result-indicator.supported {
+            background: #d1fae5;
+            color: #065f46;
+        }
+        
+        .result-indicator.partial {
+            background: #fef3c7;
+            color: #92400e;
+        }
+        
+        .result-indicator.not-supported {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        /* Timeline */
+        .timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 8px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border-color);
+        }
+        
+        .timeline-item {
+            position: relative;
+            padding-bottom: 30px;
+        }
+        
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -26px;
+            top: 4px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            border: 3px solid white;
+            box-shadow: 0 0 0 3px var(--primary-color);
+        }
+        
+        .timeline-year {
+            font-weight: 700;
+            color: var(--primary-color);
+            font-size: 1.1rem;
+        }
+        
+        /* Reference Box */
+        .reference-box {
+            background: #f1f5f9;
+            padding: 24px;
+            border-radius: 12px;
+            margin-top: 40px;
+        }
+        
+        .reference-box h3 {
+            margin-bottom: 16px;
+            color: var(--text-primary);
+        }
+        
+        .reference-box ul {
+            padding-left: 24px;
+        }
+        
+        .reference-box li {
+            margin-bottom: 8px;
+            color: var(--text-secondary);
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .home-button {
+                top: 10px;
+                left: 10px;
+                padding: 10px 16px;
+                font-size: 0.85rem;
+            }
+            .home-button span {
+                display: none;
+            }
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            .section {
+                padding: 24px;
+            }
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            .tabs {
+                flex-direction: column;
+            }
+            .tab {
+                border-radius: 8px;
+                border-bottom: none;
+            }
+            .tab.active {
+                border-bottom: none;
+                background: #eff6ff;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 首页按钮 -->
+    <a href="../index.html" class="home-button" title="返回首页">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        <span>首页</span>
+    </a>
+    
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>制度环境与证券监管</h1>
+            <div class="subtitle">基于2001-2018年证监会行政处罚决定书的分析</div>
+            <div class="meta">
+                <span>👤 盛智明、周仁磊</span>
+                <span>📚 《社会学研究》2021年第6期</span>
+                <span>🏫 上海大学社会学院</span>
+            </div>
+        </div>
+        
+        <!-- 核心概念 -->
+        <div class="section">
+            <h2 class="section-title">
+                <span class="icon">📖</span>
+                核心概念与研究问题
+            </h2>
+            
+            <div class="info-box concept">
+                <div class="info-box-title">🔍 研究问题</div>
+                <p>为什么国家设计了严格的金融监管制度体系，但却较难达到预期的监管效果？证监会的执法强度和执法效率如何？影响因素和机制是什么？执法效果怎样？</p>
+            </div>
+            
+            <div class="grid">
+                <div class="card">
+                    <div class="card-title">📋 制度执行 (Implementation)</div>
+                    <p>制度发挥作用的关键环节。制度执行又受制度环境的影响，存在"制度设计"与"制度执行"之间的张力。</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">🌍 制度环境 (Institutional Environment)</div>
+                    <p>包括正式制度（法规政策）和非正式制度（价值取向、关系网络）。分为宏观、中观、微观三个层面。</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">⚖️ 执法强度 (Enforcement Intensity)</div>
+                    <p>用罚款强度系数测量：实际罚款与法定上限的比值。数值型罚款和倍率式罚款分别计算。</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">⏱️ 执法效率 (Enforcement Efficiency)</div>
+                    <p>从违法行为发生到行政处罚决定的时间跨度。时间越短，效率越高。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 理论框架 -->
+        <div class="section">
+            <h2 class="section-title">
+                <span class="icon">🧠</span>
+                理论框架与分析维度
+            </h2>
+            
+            <div class="chart-container">
+                <div id="framework-chart" style="height: 500px;"></div>
+            </div>
+            
+            <div class="info-box concept">
+                <div class="info-box-title">📊 分析维度</div>
+                <p>本研究从<strong>宏观、中观、微观</strong>三个层面以及<strong>地域、组织、个体</strong>三个维度，系统考察制度环境对证券监管执法的影响。</p>
+            </div>
+            
+            <div class="grid">
+                <div class="card">
+                    <div class="card-title">🌐 宏观层面 - 地区市场化程度</div>
+                    <p>使用樊纲等编制的"中国市场化指数"，衡量行政执法发生地的制度环境质量。</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">🏢 中观层面 - 组织制度环境</div>
+                    <p>包括证监会监管注意力（不同时期重点）和被监管对象性质（上市公司vs非上市公司）。</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">👤 微观层面 - 个体因素</div>
+                    <p>证监会领导风格（历任主席）和被监管公司高管政治关联（政府工作背景）。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 研究假设 -->
+        <div class="section">
+            <h2 class="section-title">
+                <span class="icon">💡</span>
+                研究假设
+            </h2>
+            
+            <div class="hypothesis">
+                <div class="hypothesis-title">假设1：市场化程度与执法效率</div>
+                <p>市场化程度低的地区证券监管行政执法效率低，市场化程度高的地区证券监管行政执法效率高。</p>
+                <p style="margin-top: 12px;"><span class="result-indicator supported">✓ 得到证实</span></p>
+            </div>
+            
+            <div class="hypothesis">
+                <div class="hypothesis-title">假设2：市场化程度与执法强度</div>
+                <p>市场化程度低的地区证券监管行政执法强度反而较高；市场化程度高的地区证券监管行政执法强度反而较低。</p>
+                <p style="margin-top: 12px;"><span class="result-indicator not-supported">✗ 未得到证实</span></p>
+            </div>
+            
+            <div class="hypothesis">
+                <div class="hypothesis-title">假设3：监管注意力与执法行为</div>
+                <p>证券监管部门对某类违法违规行为的注意力越高，对该类行为的行政执法强度和执法效率越高。</p>
+                <p style="margin-top: 12px;"><span class="result-indicator partial">△ 部分证实</span></p>
+            </div>
+            
+            <div class="hypothesis">
+                <div class="hypothesis-title">假设4：政治关联与执法行为</div>
+                <p>证券监管部门在对政治关联度高的被监管对象进行行政执法时，执法强度和效率都较低。</p>
+                <p style="margin-top: 12px;"><span class="result-indicator partial">△ 部分证实（仅效率）</span></p>
+            </div>
+        </div>
+
+        <!-- 研究方法详解 -->
+        <div class="section">
+            <h2 class="section-title">
+                <span class="icon">🔬</span>
+                研究方法详解
+            </h2>
+            
+            <div class="tabs">
+                <button class="tab active" onclick="showTab('data-tab')">数据来源</button>
+                <button class="tab" onclick="showTab('nbreg-tab')">负二项回归</button>
+                <button class="tab" onclick="showTab('event-tab')">事件研究法</button>
+                <button class="tab" onclick="showTab('variables-tab')">变量定义</button>
+            </div>
+            
+            <!-- 数据来源 -->
+            <div id="data-tab" class="tab-content active">
+                <div class="info-box concept">
+                    <div class="info-box-title">📁 数据来源</div>
+                    <p>中国证监会2001-2018年发布的《行政处罚决定书》。通过对文本资料的整理、编码、录入，转化为量化数据。</p>
+                </div>
+                
+                <div class="grid">
+                    <div class="card">
+                        <div class="card-title">📊 样本特征</div>
+                        <ul style="padding-left: 20px; margin-top: 12px;">
+                            <li>时间跨度：2001-2018年（18年）</li>
+                            <li>分析对象：受证监会行政处罚的机构</li>
+                            <li>机构类型：上市公司和非上市公司</li>
+                            <li>上市公司子样本：174个</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">⚠️ 违法类型（11种）</div>
+                        <ul style="padding-left: 20px; margin-top: 12px; font-size: 0.9rem;">
+                            <li>信息披露不合法</li>
+                            <li>内幕交易</li>
+                            <li>操纵市场</li>
+                            <li>法人利用他人账户</li>
+                            <li>超比例持股</li>
+                            <li>短线交易</li>
+                            <li>证券期货公司经营问题</li>
+                            <li>从业人员买卖股票</li>
+                            <li>编造传播虚假信息</li>
+                            <li>中介机构违法</li>
+                            <li>其他</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 负二项回归 -->
+            <div id="nbreg-tab" class="tab-content">
+                <div class="info-box formula">
+                    <div class="info-box-title">📐 为什么选择负二项回归？</div>
+                    <p>执法效率（处罚用时）是计数数据，且存在<strong>过度离散 (Overdispersion)</strong> 现象——方差大于均值。泊松回归假设均值等于方差，在此不适用。</p>
+                </div>
+                
+                <div class="formula-display">
+                    <p><strong>负二项分布的概率质量函数：</strong></p>
+                    <p style="margin-top: 16px;">\[P(Y=y) = \frac{\Gamma(y + \alpha^{-1})}{\Gamma(y+1)\Gamma(\alpha^{-1})} \left(\frac{\alpha^{-1}}{\alpha^{-1}+\mu}\right)^{\alpha^{-1}} \left(\frac{\mu}{\alpha^{-1}+\mu}\right)^y\]</p>
+                    <p style="margin-top: 16px;"><strong>均值-方差关系：</strong></p>
+                    <p>\[E(Y) = \mu, \quad Var(Y) = \mu + \alpha\mu^2\]</p>
+                    <p style="margin-top: 16px; color: #94a3b8;">其中 \(\alpha\) 是离散参数。当 \(\alpha = 0\) 时，退化为泊松分布。</p>
+                </div>
+                
+                <div class="formula-display">
+                    <p><strong>回归模型（对数链接函数）：</strong></p>
+                    <p style="margin-top: 16px;">\[\log(\mu_i) = \beta_0 + \beta_1 X_{1i} + \beta_2 X_{2i} + ... + \beta_k X_{ki}\]</p>
+                    <p style="margin-top: 16px;"><strong>具体到本研究（执法效率）：</strong></p>
+                    <p style="margin-top: 8px;">\[\log(\text{Efficiency}_i) = \beta_0 + \beta_1 \text{Marketization}_i + \beta_2 \text{Period}_i + \beta_3 \text{Political}_i + \gamma \text{Controls}_i + \epsilon_i\]</p>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="nbreg-demo-chart" style="height: 400px;"></div>
+                </div>
+                
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>离散参数 (α)</span>
+                        <span id="alpha-value">0.5</span>
+                    </div>
+                    <input type="range" id="alpha-slider" min="0.1" max="2.0" step="0.1" value="0.5" oninput="updateNBRegDemo()">
+                    <p style="margin-top: 12px; color: var(--text-secondary); font-size: 0.9rem;">
+                        调节离散参数，观察负二项分布的形态变化。α越大，方差相对均值越大（过度离散越严重）。
+                    </p>
+                </div>
+            </div>
+            
+            <!-- 事件研究法 -->
+            <div id="event-tab" class="tab-content">
+                <div class="info-box formula">
+                    <div class="info-box-title">📈 事件研究法步骤</div>
+                    <p>用于评估行政处罚对上市公司股价的短期和长期影响，以累计超额收益率(CAR)衡量监管成效。</p>
+                </div>
+                
+                <div class="grid">
+                    <div class="card">
+                        <div class="card-title">步骤1：确定时间窗口</div>
+                        <ul style="padding-left: 20px; margin-top: 12px;">
+                            <li><strong>估计期：</strong>事件日前120个交易日 [-120, -1]</li>
+                            <li><strong>事件日：</strong>处罚公告日 (t=0)</li>
+                            <li><strong>事件窗口：</strong>短期 [-1, +1]；中期 [-5, +5]；长期 [-30, +30]</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">步骤2：估计正常收益率</div>
+                        <p style="margin-top: 12px;">使用市场模型：</p>
+                        <p style="font-family: monospace; background: #f1f5f9; padding: 8px; border-radius: 4px; margin-top: 8px;">R<sub>it</sub> = α<sub>i</sub> + β<sub>i</sub>R<sub>mt</sub> + ε<sub>it</sub></p>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">步骤3：计算超额收益率</div>
+                        <p style="margin-top: 12px;">超额收益率 = 实际收益率 - 预期收益率</p>
+                        <p style="font-family: monospace; background: #f1f5f9; padding: 8px; border-radius: 4px; margin-top: 8px;">AR<sub>it</sub> = R<sub>it</sub> - (α̂<sub>i</sub> + β̂<sub>i</sub>R<sub>mt</sub>)</p>
+                    </div>
+                    <div class="card">
+                        <div class="card-title">步骤4：计算累计超额收益率</div>
+                        <p style="margin-top: 12px;">特定窗口期内AR的累加：</p>
+                        <p style="font-family: monospace; background: #f1f5f9; padding: 8px; border-radius: 4px; margin-top: 8px;">CAR<sub>(t1,t2)</sub> = Σ<sub>t=t1</sub><sup>t2</sup> AR<sub>it</sub></p>
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <div id="event-study-chart" style="height: 450px;"></div>
+                </div>
+                
+                <div class="slider-container">
+                    <div class="slider-label">
+                        <span>市场反应强度</span>
+                        <span id="reaction-value">-2.5%</span>
+                    </div>
+                    <input type="range" id="reaction-slider" min="-5" max="0" step="0.1" value="-2.5" oninput="updateEventStudy()">
+                    <p style="margin-top: 12px; color: var(--text-secondary); font-size: 0.9rem;">
+                        模拟不同市场反应强度下的CAR曲线。实际研究发现：短期CAR显著为负，中长期CAR不显著。
+                    </p>
+                </div>
+            </div>
+            
+            <!-- 变量定义 -->
+            <div id="variables-tab" class="tab-content">
+                <div class="chart-container">
+                    <div id="variables-chart" style="height: 600px;"></div>
+                </div>
+                
+                <div class="info-box findings">
+                    <div class="info-box-title">📊 描述性统计结果</div>
+                    <ul style="padding-left: 20px; margin-top: 12px;">
+                        <li><strong>平均执法强度：</strong>0.52（中等水平）</li>
+                        <li><strong>平均执法效率：</strong>3.44年（从违法到处罚的平均时间）</li>
+                        <li><strong>短期CAR [-1,+1]：</strong>显著为负（股价下跌）</li>
+                        <li><strong>中长期CAR：</strong>不显著</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- 历史演变 -->
+        <div class="section">
+            <h2 class="section-title">
+                <span class="icon">📅</span>
+                证监会执法行为的历史演变
+            </h2>
+            
+            <div class="chart-container">
+                <div id="evolution-chart" style="height: 450px;"></div>
+            </div>
+            
+            <div class="timeline" style="margin-top: 40px;">
+                <div class="timeline-item">
+                    <div class="timeline-year">2001-2004：史美伦时期</div>
+                    <p style="margin-top: 8px;"><strong>监管风格：</strong>全面监管型，"从严监管"</p>
+                    <p>上任第一年颁布51个证券监管法规，执法强度逐年上升。对应股市长期"熊市"。</p>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-year">2005-2012：尚福林时期</div>
+                    <p style="margin-top: 8px;"><strong>监管风格：</strong>放松监管、还权市场</p>
+                    <p>监管强度大幅降低（2005年强度指数33.7）。2005年《证券法》修订，强化保荐机制。追求平稳平衡。</p>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-year">2013-2015：肖钢时期</div>
+                    <p style="margin-top: 8px;"><strong>监管风格：</strong>创新与风控并重</p>
+                    <p>重点查处IPO欺诈发行和中介机构违法。2015年股市暴跌，执法强度回落，投资者不满情绪严重。</p>
+                </div>
+                <div class="timeline-item">
+                    <div class="timeline-year">2016-2018：刘士余时期</div>
+                    <p style="margin-top: 8px;"><strong>监管风格：</strong>从严监管、依法监管、全面监管</p>
+                    <p>强力打击证券违法行为，加强中小投资者保护。2016-2017年执法强度达历史最高点（63.3和76.2）。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 核心发现 -->
+        <div class="section">
+            <h2 class="section-title">
+                <span class="icon">🎯</span>
+                核心研究发现
+            </h2>
+            
+            <div class="grid">
+                <div class="card" style="border-top: 4px solid var(--success-color);">
+                    <div class="card-title">发现1：执法强度波动大，受监管注意力影响</div>
+                    <p style="margin-top: 12px;">证券监管行政执法强度和效率随不同年份而波动，受监管注意力和领导风格影响较大。存在"运动式执法"特征。</p>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--info-color);">
+                    <div class="card-title">发现2：市场化程度影响执法效率</div>
+                    <p style="margin-top: 12px;">市场化程度高的地区执法效率较高（少用0.499年），对政治关联度高的机构执法效率较低。但市场化程度和政治关联度<strong>并不影响</strong>执法强度。</p>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--warning-color);">
+                    <div class="card-title">发现3：市场反应短期显著、长期不显著</div>
+                    <p style="margin-top: 12px;">违规上市公司遭受行政处罚对该公司短期股价存在负面影响，但对中长期股价不存在显著影响。说明处罚的威慑效果有限。</p>
+                </div>
+                <div class="card" style="border-top: 4px solid var(--danger-color);">
+                    <div class="card-title">发现4：整体执法强度偏低</div>
+                    <p style="margin-top: 12px;">直到2018年，我国证券监管的整体执法强度较低（均值0.52）。对信息披露处罚强度相对较高，但对涉案金额大的违法行为存在"避重就轻"倾向。</p>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <div id="findings-chart" style="height: 500px;"></div>
+            </div>
+        </div>
+
+        <!-- 研究贡献与局限 -->
+        <div class="section">
+            <h2 class="section-title">
+                <span class="icon">💎</span>
+                研究贡献与理论对话
+            </h2>
+            
+            <div class="info-box findings">
+                <div class="info-box-title">🎓 理论贡献</div>
+                <ol style="padding-left: 20px; margin-top: 12px;">
+                    <li style="margin-bottom: 8px;"><strong>补充"法与金融"学派：</strong>从执法实践角度补充了LLSV理论，指出执法效率比法律文本差异更能解释金融市场发展。</li>
+                    <li style="margin-bottom: 8px;"><strong>制度环境视角：</strong>引入制度环境概念，构建了宏观-中观-微观的分析框架，解释制度设计与制度执行的张力。</li>
+                    <li style="margin-bottom: 8px;"><strong>组织社会学应用：</strong>将塞尔兹尼克的组织非预期后果理论应用于金融监管领域，解释监管执法偏差。</li>
+                </ol>
+            </div>
+            
+            <div class="info-box warning">
+                <div class="info-box-title">⚠️ 研究局限</div>
+                <ol style="padding-left: 20px; margin-top: 12px;">
+                    <li style="margin-bottom: 8px;">仅分析行政处罚决定书，未涵盖其他监管手段（如行政监管措施、自律监管等）。</li>
+                    <li style="margin-bottom: 8px;">政治关联的测量可能不够全面（仅用国企vs民营和高管政府背景）。</li>
+                    <li style="margin-bottom: 8px;">市场反应分析仅针对上市公司，样本量有限（174个）。</li>
+                    <li style="margin-bottom: 8px;">2020年新《证券法》实施后，处罚力度已大幅提升，研究结论可能需要更新。</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- 政策含义 -->
+        <div class="section">
+            <h2 class="section-title">
+                <span class="icon">📝</span>
+                政策含义与启示
+            </h2>
+            
+            <div class="grid">
+                <div class="card">
+                    <div class="card-title">🔄 避免"运动式执法"</div>
+                    <p>监管模式不应随领导更换和政策风向而大幅波动。需要建立稳定的、制度化的执法机制，减少政策市特征。</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">⚖️ 提高执法强度</div>
+                    <p>2020年新《证券法》已大幅提高处罚上限（信息披露最高1000万），需要持续跟踪评估新法的实施效果。</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">🏛️ 改善制度环境</div>
+                    <p>在市场化程度较低的地区，需要改善地方政府的配合度和行政效率，减少地方保护主义对证券监管的干扰。</p>
+                </div>
+                <div class="card">
+                    <div class="card-title">🔗 减少政治关联干扰</div>
+                    <p>国企背景和高管政治关联降低了执法效率。需要建立更加独立的监管体系，减少非正式关系对执法的影响。</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 参考文献 -->
+        <div class="reference-box">
+            <h3>📚 参考文献</h3>
+            <ul>
+                <li>盛智明, 周仁磊. (2021). 制度环境与证券监管——基于2001-2018年证监会行政处罚决定书的分析. <em>社会学研究</em>, (6).</li>
+                <li>La Porta, R., Lopez-de-Silanes, F., Shleifer, A., & Vishny, R. (1998). Law and Finance. <em>Journal of Political Economy</em>, 106(6), 1113-1155.</li>
+                <li>周雪光. (2008). 基层政府间的"共谋现象"——一个政府行为的制度逻辑. <em>社会学研究</em>, (6).</li>
+                <li>塞尔兹尼克 (Selznick, P.). (1949). <em>TVA与草根组织</em> (TVA and the Grass Roots).</li>
+                <li>练宏. (2013). 政府组织注意力分配研究. <em>社会学研究</em>.</li>
+                <li>樊纲, 王小鲁. 中国市场化指数.</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+        
+        // Framework Chart - Treemap (more reliable than sunburst)
+        const frameworkData = [{
+            type: "treemap",
+            labels: ["制度环境", "宏观层面", "中观层面", "微观层面", "地区市场化<br>程度", "监管<br>注意力", "被监管对象<br>性质", "领导<br>风格", "高管政治<br>关联", "执法效率", "执法强度", "市场反应"],
+            parents: ["", "制度环境", "制度环境", "制度环境", "宏观层面", "中观层面", "中观层面", "微观层面", "微观层面", "制度环境", "制度环境", "制度环境"],
+            values: [100, 30, 30, 30, 30, 15, 15, 15, 15, 30, 30, 30],
+            textinfo: "label+value",
+            hovertemplate: "<b>%{label}</b><br>权重: %{value}<extra></extra>",
+            marker: {
+                colors: ["#1e3a8a", "#2563eb", "#3b82f6", "#60a5fa", "#1d4ed8", "#3730a3", "#4f46e5", "#7c3aed", "#a855f7", "#059669", "#d97706", "#dc2626"],
+                line: { width: 2, color: "white" }
+            },
+            textfont: { size: 14, color: "white" },
+            insidetextfont: { size: 13 },
+            outsidetextfont: { size: 12 }
+        }];
+        
+        Plotly.newPlot('framework-chart', frameworkData, {
+            title: {
+                text: "制度环境与证券监管分析框架",
+                font: { size: 18 }
+            },
+            margin: { t: 60, b: 20, l: 20, r: 20 },
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)"
+        }, { responsive: true });
+        
+        // Negative Binomial Regression Demo
+        function updateNBRegDemo() {
+            const alpha = parseFloat(document.getElementById('alpha-slider').value);
+            document.getElementById('alpha-value').textContent = alpha.toFixed(1);
+            
+            // Generate negative binomial distribution
+            const mu = 5;
+            const p = 1 / (1 + alpha * mu);
+            const r = 1 / alpha;
+            
+            const x = Array.from({length: 21}, (_, i) => i);
+            const y = x.map(k => {
+                // Negative binomial PMF approximation
+                const coef = Math.exp(logGamma(k + r) - logGamma(k + 1) - logGamma(r));
+                return coef * Math.pow(p, r) * Math.pow(1 - p, k);
+            });
+            
+            const trace1 = {
+                x: x,
+                y: y,
+                type: 'bar',
+                marker: { color: '#2563eb' },
+                name: '负二项分布 (α=' + alpha + ')'
+            };
+            
+            // Poisson for comparison
+            const poissonY = x.map(k => (Math.pow(mu, k) * Math.exp(-mu)) / factorial(k));
+            const trace2 = {
+                x: x,
+                y: poissonY,
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: { color: '#ef4444', dash: 'dash' },
+                name: '泊松分布 (μ=5)'
+            };
+            
+            const layout = {
+                title: '负二项分布 vs 泊松分布 (α=' + alpha + ')',
+                xaxis: { title: '处罚用时 (年)' },
+                yaxis: { title: '概率' },
+                annotations: [{
+                    x: 0.5,
+                    y: 1.15,
+                    xref: 'paper',
+                    yref: 'paper',
+                    text: '方差 = μ + ' + alpha + 'μ² = ' + (mu + alpha * mu * mu).toFixed(2),
+                    showarrow: false,
+                    font: { size: 14, color: '#059669' }
+                }],
+                paper_bgcolor: "rgba(0,0,0,0)",
+                plot_bgcolor: "rgba(0,0,0,0)"
+            };
+            
+            Plotly.newPlot('nbreg-demo-chart', [trace1, trace2], layout, { responsive: true });
+        }
+        
+        // Helper functions
+        function logGamma(n) {
+            // Lanczos approximation for log gamma
+            const g = 7;
+            const p = [0.99999999999980993, 676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059, 12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+            if (n < 0.5) return Math.log(Math.PI) - Math.log(Math.sin(Math.PI * n)) - logGamma(1 - n);
+            n -= 1;
+            let x = p[0];
+            for (let i = 1; i < g + 2; i++) x += p[i] / (n + i);
+            const t = n + g + 0.5;
+            return 0.5 * Math.log(2 * Math.PI) + (n + 0.5) * Math.log(t) - t + Math.log(x);
+        }
+        
+        function factorial(n) {
+            if (n === 0) return 1;
+            let result = 1;
+            for (let i = 2; i <= n; i++) {
+                result *= i;
+            }
+            return result;
+        }
+        
+        // Event Study Demo
+        function updateEventStudy() {
+            const reaction = parseFloat(document.getElementById('reaction-slider').value);
+            document.getElementById('reaction-value').textContent = reaction.toFixed(1) + '%';
+            
+            // Generate CAR curve
+            const days = Array.from({length: 21}, (_, i) => i - 10);
+            const carShort = days.map(d => {
+                if (d < -1) return 0;
+                if (d > 1) return reaction;
+                return reaction * (d + 1) / 2;
+            });
+            const carLong = days.map(d => {
+                if (d < -5) return 0;
+                if (d > 5) return reaction * 0.3;
+                return reaction * 0.3 * (d + 5) / 10;
+            });
+            
+            const trace1 = {
+                x: days,
+                y: carShort,
+                type: 'scatter',
+                mode: 'lines',
+                name: '短期窗口 [-1,+1]',
+                line: { color: '#ef4444', width: 3 }
+            };
+            
+            const trace2 = {
+                x: days,
+                y: carLong,
+                type: 'scatter',
+                mode: 'lines',
+                name: '中期窗口 [-5,+5]',
+                line: { color: '#3b82f6', width: 3, dash: 'dash' }
+            };
+            
+            const layout = {
+                title: '累计超额收益率 (CAR) 模拟',
+                xaxis: { 
+                    title: '事件日',
+                    zeroline: true,
+                    zerolinecolor: '#94a3b8',
+                    zerolinewidth: 2
+                },
+                yaxis: { 
+                    title: 'CAR (%)',
+                    zeroline: true
+                },
+                shapes: [{
+                    type: 'line',
+                    x0: 0,
+                    x1: 0,
+                    y0: -5,
+                    y1: 0,
+                    line: { color: '#059669', width: 2, dash: 'dot' }
+                }],
+                annotations: [{
+                    x: 0,
+                    y: 0.5,
+                    xref: 'x',
+                    yref: 'paper',
+                    text: '处罚公告日',
+                    showarrow: false,
+                    font: { color: '#059669' }
+                }],
+                paper_bgcolor: "rgba(0,0,0,0)",
+                plot_bgcolor: "rgba(0,0,0,0)"
+            };
+            
+            Plotly.newPlot('event-study-chart', [trace1, trace2], layout, { responsive: true });
+        }
+        
+        // Variables Chart
+        const variablesData = [{
+            type: 'table',
+            header: {
+                values: [['变量类型'], ['变量名'], ['定义'], ['测量方式']],
+                align: 'left',
+                fill: { color: '#2563eb' },
+                font: { color: 'white', size: 14 },
+                line: { color: '#1e40af', width: 2 }
+            },
+            cells: {
+                values: [
+                    ['因变量', '因变量', '因变量', '自变量', '自变量', '自变量', '控制变量', '控制变量'],
+                    ['执法强度', '执法效率', 'CAR', '市场化程度', '监管时期', '政治关联', '公司类型', '违法类型'],
+                    ['罚款强度系数', '违法到处罚的时间', '累计超额收益率', '地区市场化水平', '证监会不同时期', '国企/高管政府背景', '上市公司/非上市', '11种违法类型'],
+                    ['实际罚款/法定上限', '年数', '窗口期内AR累加', '市场化指数三等分', '4个时期', '虚拟变量', '虚拟变量', '分类变量']
+                ],
+                align: 'left',
+                fill: { color: [['#eff6ff', '#ffffff', '#ffffff', '#f0fdf4', '#f0fdf4', '#f0fdf4', '#fef3c7', '#fef3c7']] },
+                line: { color: '#e2e8f0', width: 1 },
+                font: { size: 12 }
+            }
+        }];
+        
+        Plotly.newPlot('variables-chart', variablesData, {
+            title: {
+                text: "核心变量定义表",
+                font: { size: 18 }
+            },
+            margin: { t: 50, b: 20 },
+            paper_bgcolor: "rgba(0,0,0,0)"
+        }, { responsive: true });
+        
+        // Evolution Chart
+        const years = Array.from({length: 18}, (_, i) => 2001 + i);
+        const intensity = [45, 48, 52, 55, 33.7, 42, 45, 44, 43, 42, 45, 46, 45, 44, 42, 63.3, 76.2, 58];
+        const periods = ['史美伦', '史美伦', '史美伦', '史美伦', '尚福林', '尚福林', '尚福林', '尚福林', '尚福林', '尚福林', '尚福林', '郭树清', '肖钢', '肖钢', '肖钢', '刘士余', '刘士余', '刘士余'];
+        
+        const evolutionTrace = {
+            x: years,
+            y: intensity,
+            type: 'scatter',
+            mode: 'lines+markers',
+            marker: {
+                size: 10,
+                color: intensity,
+                colorscale: 'Viridis',
+                showscale: true,
+                colorbar: { title: '强度指数' }
+            },
+            line: { width: 3, color: '#2563eb' },
+            text: periods,
+            hovertemplate: '<b>%{x}年</b><br>强度指数: %{y}<br>主席: %{text}<extra></extra>'
+        };
+        
+        const evolutionLayout = {
+            title: {
+                text: "证监会执法强度历史演变 (2001-2018)",
+                font: { size: 18 }
+            },
+            xaxis: { title: '年份', dtick: 2 },
+            yaxis: { title: '执法强度指数', range: [20, 85] },
+            shapes: [
+                { type: 'rect', x0: 2000.5, x1: 2004.5, y0: 20, y1: 85, fillcolor: '#dbeafe', opacity: 0.3, line: { width: 0 } },
+                { type: 'rect', x0: 2004.5, x1: 2012.5, y0: 20, y1: 85, fillcolor: '#fef3c7', opacity: 0.3, line: { width: 0 } },
+                { type: 'rect', x0: 2012.5, x1: 2015.5, y0: 20, y1: 85, fillcolor: '#fce7f3', opacity: 0.3, line: { width: 0 } },
+                { type: 'rect', x0: 2015.5, x1: 2018.5, y0: 20, y1: 85, fillcolor: '#d1fae5', opacity: 0.3, line: { width: 0 } }
+            ],
+            annotations: [
+                { x: 2002.5, y: 82, text: '史美伦时期<br>从严监管', showarrow: false, font: { size: 11 } },
+                { x: 2008.5, y: 82, text: '尚福林时期<br>放松监管', showarrow: false, font: { size: 11 } },
+                { x: 2014, y: 82, text: '肖钢时期<br>稳中求进', showarrow: false, font: { size: 11 } },
+                { x: 2017, y: 82, text: '刘士余时期<br>从严监管', showarrow: false, font: { size: 11 } }
+            ],
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)"
+        };
+        
+        Plotly.newPlot('evolution-chart', [evolutionTrace], evolutionLayout, { responsive: true });
+        
+        // Findings Chart - Grouped Bar
+        const findingsTrace1 = {
+            x: ['市场化程度高', '市场化程度中', '市场化程度低', '国有企业', '民营企业', '有政治关联', '无政治关联'],
+            y: [2.9, 3.4, 3.5, 4.0, 3.2, 4.2, 3.1],
+            name: '执法效率（年，越低越好）',
+            type: 'bar',
+            marker: { color: '#3b82f6' }
+        };
+        
+        const findingsTrace2 = {
+            x: ['市场化程度高', '市场化程度中', '市场化程度低', '国有企业', '民营企业', '有政治关联', '无政治关联'],
+            y: [0.52, 0.51, 0.53, 0.51, 0.53, 0.50, 0.54],
+            name: '执法强度（系数）',
+            type: 'bar',
+            marker: { color: '#10b981' },
+            yaxis: 'y2'
+        };
+        
+        const findingsLayout = {
+            title: {
+                text: "制度环境对执法行为的影响",
+                font: { size: 18 }
+            },
+            xaxis: { title: '' },
+            yaxis: { 
+                title: '执法效率（年）',
+                titlefont: { color: '#3b82f6' },
+                tickfont: { color: '#3b82f6' }
+            },
+            yaxis2: {
+                title: '执法强度（系数）',
+                titlefont: { color: '#10b981' },
+                tickfont: { color: '#10b981' },
+                overlaying: 'y',
+                side: 'right'
+            },
+            barmode: 'group',
+            legend: { x: 0.5, y: 1.15, xanchor: 'center', orientation: 'h' },
+            paper_bgcolor: "rgba(0,0,0,0)",
+            plot_bgcolor: "rgba(0,0,0,0)"
+        };
+        
+        Plotly.newPlot('findings-chart', [findingsTrace1, findingsTrace2], findingsLayout, { responsive: true });
+        
+        // Initialize demos
+        updateNBRegDemo();
+        updateEventStudy();
+    </script>
+</body>
+</html>

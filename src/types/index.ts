@@ -218,6 +218,16 @@ export interface ScriptGenerationResult {
 export interface RichTextPreprocessResult {
   preprocessedText: string;
   summary: string;
+  coverageChecklist?: Array<{
+    factId: string;
+    kept: boolean;
+    evidence?: string;
+  }>;
+  detectedFacts?: Array<{
+    id: string;
+    fact: string;
+  }>;
+  adjustments?: string[];
   metadata: {
     originalLength: number;
     processedLength: number;

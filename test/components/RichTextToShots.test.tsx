@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RichTextToShots } from '../../src/components/RichTextToShots';
 import { useEditorStore } from '../../src/store/editorStore';
 
@@ -30,6 +30,11 @@ describe('RichTextToShots Component', () => {
       preprocessRichTextForStoryboard: vi.fn().mockResolvedValue({
         preprocessedText: '预处理后稿件',
         summary: '长度比例 1.00，信息密度保持在可接受范围。',
+        coverageChecklist: [
+          { factId: 'F1', kept: true, evidence: '第1段保留背景信息' },
+          { factId: 'F2', kept: false, evidence: '缺失实施条件' }
+        ],
+        adjustments: ['补回 F2 信息'],
         metadata: {
           originalLength: 100,
           processedLength: 100,
@@ -85,5 +90,9 @@ describe('RichTextToShots Component', () => {
     expect(screen.getByText(/文体: analysis/i)).toBeInTheDocument();
     expect(screen.getAllByText(/信息密度保持在可接受范围/i).length).toBeGreaterThan(0);
     expect(screen.getByDisplayValue('预处理后稿件')).toBeInTheDocument();
+    expect(screen.getByText(/原文（预处理输入）/i)).toBeInTheDocument();
+    expect(screen.getByText(/信息覆盖率明细/i)).toBeInTheDocument();
+    expect(screen.getByText('F1')).toBeInTheDocument();
+    expect(screen.getByText(/补回 F2 信息/)).toBeInTheDocument();
   });
 });
