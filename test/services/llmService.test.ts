@@ -69,4 +69,62 @@ describe('LLMService', () => {
     expect(result.summary).toContain('解析到 3 个分镜');
     expect(errorSpy).toHaveBeenCalled();
   });
+
+  it('returns default model and api url by provider', () => {
+    expect(LLMService.getDefaultModel('bytedance')).toBeTruthy();
+    expect(LLMService.getDefaultApiUrl('openai')).toContain('openai.com');
+  });
+
+  it('generatePublishContent parses json response', async () => {
+    vi.mocked(callLLMByBackend).mockResolvedValue(
+      '```json\n{"title":"标题A","content":"内容A","tags":["剧情","悬疑"]}\n```'
+    );
+
+    const service = createByteDanceService();
+    const result = await service.generatePublishContent(
+      '剧本',
+      [{ description: '镜头', duration: 5, assetRefs: [] }],
+      'bilibili'
+    );
+
+    expect(result).toEqual({
+      platform: 'bilibili',
+      title: '标题A',
+      content: '内容A',
+      tags: ['剧情', '悬疑']
+    });
+  });
+
+  it('generatePublishContent falls back to regex extraction when json parse fails', async () => {
+    vi.mocked(callLLMByBackend).mockResolvedValue(
+      '标题：爆款标题\n内容：这是一段正文\n标签：热血,剧情,反转'
+    );
+
+    const service = createByteDanceService();
+    const result = await service.generatePublishContent(
+      '剧本',
+      [{ description: '镜头', duration: 5, assetRefs: [] }],
+      'douyin'
+    );
+
+    expect(result.title).toBe('爆款标题');
+    expect(result.content).toBe('这是一段正文');
+    expect(result.tags).toEqual(['热血', '剧情', '反转']);
+  });
+
+  it('checkCompliance parses json and supports keyword fallback', async () => {
+    vi.mocked(callLLMByBackend).mockResolvedValueOnce(
+      '{"passed":false,"reason":"包含敏感内容","suggestions":["删改敏感词"]}'
+    );
+
+    const service = createByteDanceService();
+    const structured = await service.checkCompliance('t', 'c', ['x']);
+    expect(structured.passed).toBe(false);
+    expect(structured.reason).toContain('敏感');
+
+    vi.mocked(callLLMByBackend).mockResolvedValueOnce('该内容不合规，包含违规信息');
+    const fallback = await service.checkCompliance('t', 'c', ['x']);
+    expect(fallback.passed).toBe(false);
+    expect(fallback.reason).toContain('请人工复核');
+  });
 });

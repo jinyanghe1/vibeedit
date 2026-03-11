@@ -23,11 +23,12 @@ interface TextImageRequest {
 }
 
 function getErrorDetails(data: unknown): string {
-  if (!data || typeof data !== 'object') {
+  if (!data || typeof data !== 'object' || data === null) {
     return '';
   }
-  const maybeRecord = data as Record<string, unknown>;
-  return String(maybeRecord.details || maybeRecord.error || '').trim();
+  const record = data as Record<string, unknown>;
+  const detail = record.details ?? record.error;
+  return typeof detail === 'string' ? detail.trim() : '';
 }
 
 async function readJsonSafe(response: Response): Promise<unknown> {

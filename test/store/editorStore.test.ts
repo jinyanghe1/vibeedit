@@ -1,6 +1,10 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import { useEditorStore, useUndo } from '../../src/store/editorStore';
+import * as bytedanceService from '../../src/services/bytedanceService';
+import { ByteDanceLLMService } from '../../src/services/bytedanceService';
+import { LLMService } from '../../src/services/llmService';
+import { WebNovelInspirationService } from '../../src/services/webNovelInspirationService';
 
 type TemporalApi = {
   undo: () => void;
@@ -12,6 +16,7 @@ type TemporalApi = {
 
 const getTemporal = () =>
   (useEditorStore as unknown as { temporal: { getState: () => TemporalApi } }).temporal.getState();
+const originalGenerateVideo = useEditorStore.getState().generateVideo;
 
 describe('Editor Store', () => {
   beforeEach(() => {
@@ -34,10 +39,29 @@ describe('Editor Store', () => {
         apiKey: '',
         apiUrl: 'https://api.example.com/v1',
         model: 'test-model'
-      }
+      },
+      styleConfig: {
+        enabled: false,
+        styleDescription: '',
+        colorPalette: '',
+        lighting: '',
+        mood: ''
+      },
+      toneConfig: {
+        rhythm: 'moderate',
+        colorTone: 'neutral',
+        cameraStyle: 'steady',
+        narrativeStyle: 'voiceover',
+        visualStyle: 'realistic'
+      },
+      generateVideo: originalGenerateVideo
     });
 
     getTemporal().clear?.();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   describe('Shots actions', () => {
@@ -156,6 +180,63 @@ describe('Editor Store', () => {
       const { selectVideo } = useEditorStore.getState();
       selectVideo('vid-123');
       expect(useEditorStore.getState().selectedVideoId).toBe('vid-123');
+    });
+
+    it('should fallback to latest shot video when selectedVideoId is empty', () => {
+      useEditorStore.setState({
+        shots: [
+          {
+            id: 'shot-with-videos',
+            description: 'test',
+            duration: 5,
+            assetRefs: [],
+            videos: [
+              { id: 'v1', shotId: 'shot-with-videos', url: 'u1', prompt: 'p1', createdAt: 1 },
+              { id: 'v2', shotId: 'shot-with-videos', url: 'u2', prompt: 'p2', createdAt: 2 }
+            ],
+            order: 0
+          }
+        ],
+        selectedShotId: 'shot-with-videos',
+        selectedVideoId: null
+      });
+
+      const selectedVideo = useEditorStore.getState().getSelectedVideo();
+      expect(selectedVideo?.id).toBe('v2');
+      expect(selectedVideo?.url).toBe('u2');
+    });
+
+    it('should not resolve selectedVideoId from a different shot', () => {
+      useEditorStore.setState({
+        shots: [
+          {
+            id: 'shot-a',
+            description: 'A',
+            duration: 5,
+            assetRefs: [],
+            videos: [
+              { id: 'va-1', shotId: 'shot-a', url: 'ua1', prompt: 'pa1', createdAt: 1 }
+            ],
+            order: 0
+          },
+          {
+            id: 'shot-b',
+            description: 'B',
+            duration: 5,
+            assetRefs: [],
+            videos: [
+              { id: 'vb-1', shotId: 'shot-b', url: 'ub1', prompt: 'pb1', createdAt: 1 }
+            ],
+            order: 1
+          }
+        ],
+        selectedShotId: 'shot-a',
+        selectedVideoId: 'vb-1'
+      });
+
+      const selectedVideo = useEditorStore.getState().getSelectedVideo();
+      expect(selectedVideo?.id).toBe('va-1');
+      expect(selectedVideo?.url).toBe('ua1');
     });
   });
 
@@ -325,6 +406,424 @@ describe('Editor Store', () => {
         result.current.undo();
       });
       expect(result.current.canRedo).toBe(true);
+    });
+
+    it('should update asset metadata and manage asset insertions', () => {
+      const { addAsset, updateAsset, addShot, addAssetInsertion, updateAssetInsertion, removeAssetInsertion } = useEditorStore.getState();
+      addAsset('hero', 'https://hero.png', 'image');
+      updateAsset('hero', { description: '主角红衣' });
+      addShot('镜头 @hero', 5);
+
+      const shotId = useEditorStore.getState().shots[0].id;
+      addAssetInsertion(shotId, {
+        id: 'ins-1',
+        assetId: useEditorStore.getState().assets.hero.id,
+        assetName: 'hero',
+        mode: 'overlay',
+        overlay: {
+          position: 'center',
+          width: 30,
+          height: 30,
+          opacity: 0.8,
+          startTime: 0,
+          endTime: 3,
+          zIndex: 2
+        }
+      });
+
+      updateAssetInsertion(shotId, 'ins-1', { displayDuration: 2 });
+      expect(useEditorStore.getState().assets.hero.description).toBe('主角红衣');
+      expect(useEditorStore.getState().shots[0].assetInsertions?.[0].displayDuration).toBe(2);
+
+      removeAssetInsertion(shotId, 'ins-1');
+      expect(useEditorStore.getState().shots[0].assetInsertions).toEqual([]);
+    });
+
+    it('should persist llm config and update style/tone settings', () => {
+      const { updateLLMConfig, getLLMConfig, updateStyleConfig, getStyleConfig, updateToneConfig, getToneConfig } = useEditorStore.getState();
+
+      updateLLMConfig({ apiKey: 'llm-key', provider: 'openai' });
+      expect(getLLMConfig().provider).toBe('openai');
+      expect(getLLMConfig().apiKey).toBe('llm-key');
+      expect(localStorage.getItem('storyboard-editor-llm-config')).toContain('llm-key');
+
+      updateStyleConfig({ enabled: true, styleDescription: '胶片风' });
+      expect(getStyleConfig().enabled).toBe(true);
+      expect(getStyleConfig().styleDescription).toBe('胶片风');
+
+      updateToneConfig({ rhythm: 'fast', visualStyle: 'cinematic' });
+      expect(getToneConfig().rhythm).toBe('fast');
+      expect(getToneConfig().visualStyle).toBe('cinematic');
+    });
+
+    it('should duplicate shot right after original and clear duplicated videos', () => {
+      useEditorStore.setState({
+        shots: [
+          {
+            id: 's1',
+            description: '原分镜',
+            duration: 6,
+            assetRefs: [],
+            videos: [{ id: 'v1', shotId: 's1', url: 'u', prompt: 'p', createdAt: 1 }],
+            order: 0
+          },
+          {
+            id: 's2',
+            description: '后续分镜',
+            duration: 4,
+            assetRefs: [],
+            videos: [],
+            order: 1
+          }
+        ]
+      });
+
+      useEditorStore.getState().duplicateShot('s1');
+      const shots = useEditorStore.getState().shots;
+
+      expect(shots).toHaveLength(3);
+      expect(shots[1].description).toBe('原分镜');
+      expect(shots[1].videos).toEqual([]);
+      expect(shots[2].order).toBe(2);
+    });
+
+    it('should route generateShotsFromScript to ByteDance/LLM/mock branches', async () => {
+      const bytedanceSpy = vi.spyOn(ByteDanceLLMService.prototype, 'generateFromScript')
+        .mockResolvedValue({ shots: [], summary: 'bd' });
+      const llmSpy = vi.spyOn(LLMService.prototype, 'generateFromScript')
+        .mockResolvedValue({ shots: [], summary: 'llm' });
+
+      useEditorStore.setState({
+        llmConfig: { provider: 'bytedance', apiKey: 'k', apiUrl: 'u', model: 'm' }
+      });
+      await expect(useEditorStore.getState().generateShotsFromScript('剧本')).resolves.toEqual({ shots: [], summary: 'bd' });
+
+      useEditorStore.setState({
+        llmConfig: { provider: 'openai', apiKey: 'k', apiUrl: 'u', model: 'm' }
+      });
+      await expect(useEditorStore.getState().generateShotsFromScript('剧本')).resolves.toEqual({ shots: [], summary: 'llm' });
+
+      useEditorStore.setState({
+        llmConfig: { provider: 'openai', apiKey: '', apiUrl: 'u', model: 'm' }
+      });
+      const mockResult = await useEditorStore.getState().generateShotsFromScript('只有一句话');
+      expect(mockResult.summary).toContain('模拟模式');
+
+      bytedanceSpy.mockRestore();
+      llmSpy.mockRestore();
+    });
+
+    it('should route generateWebNovelInspiration to real service when llm config exists', async () => {
+      const serviceSpy = vi.spyOn(WebNovelInspirationService.prototype, 'generate').mockResolvedValue({
+        keywords: ['重生'],
+        enhancedQueries: ['q1'],
+        searchResults: [],
+        outline: 'o',
+        plotExcerpt: 'p',
+        expandedContent: 'c',
+        complianceNotice: 'n'
+      });
+
+      useEditorStore.setState({
+        llmConfig: { provider: 'openai', apiKey: 'k', apiUrl: 'u', model: 'm' }
+      });
+
+      const result = await useEditorStore.getState().generateWebNovelInspiration(['重生']);
+      expect(result.outline).toBe('o');
+      expect(serviceSpy).toHaveBeenCalledTimes(1);
+      serviceSpy.mockRestore();
+    });
+
+    it('should generate video via bytedance api and reset status to idle', async () => {
+      vi.useFakeTimers();
+      const videoSpy = vi.spyOn(bytedanceService, 'generateVideoWithByteDance').mockResolvedValue({
+        url: 'https://video.mp4',
+        prompt: 'prompt'
+      });
+
+      useEditorStore.setState({
+        shots: [
+          {
+            id: 'shot-1',
+            description: '视频分镜',
+            duration: 5,
+            assetRefs: [],
+            videos: [],
+            order: 0
+          }
+        ],
+        apiConfig: { provider: 'bytedance', apiKey: 'video-key', apiUrl: '' }
+      });
+
+      await useEditorStore.getState().generateVideo('shot-1');
+      expect(videoSpy).toHaveBeenCalledTimes(1);
+      expect(useEditorStore.getState().generationStatus['shot-1']).toBe('success');
+
+      await vi.advanceTimersByTimeAsync(3000);
+      expect(useEditorStore.getState().generationStatus['shot-1']).toBe('idle');
+
+      vi.useRealTimers();
+      videoSpy.mockRestore();
+    });
+
+    it('should set error status when video generation fails', async () => {
+      const videoSpy = vi.spyOn(bytedanceService, 'generateVideoWithByteDance').mockRejectedValue(new Error('boom'));
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      useEditorStore.setState({
+        shots: [
+          {
+            id: 'shot-2',
+            description: '视频分镜',
+            duration: 5,
+            assetRefs: [],
+            videos: [],
+            order: 0
+          }
+        ],
+        apiConfig: { provider: 'bytedance', apiKey: 'video-key', apiUrl: '' }
+      });
+
+      await useEditorStore.getState().generateVideo('shot-2');
+      expect(useEditorStore.getState().generationStatus['shot-2']).toBe('error');
+
+      videoSpy.mockRestore();
+      consoleSpy.mockRestore();
+    });
+  });
+
+  describe('Task14 consistency actions', () => {
+    it('should upsert/get/delete character profile and clean links', () => {
+      const profile = {
+        id: 'char-1',
+        assetName: '小红',
+        displayName: '小红',
+        appearance: { hair: '长发' },
+        outfit: { default: '红色汉服', alternatives: ['黑色战斗服'] },
+        forbiddenTraits: ['短发'],
+        version: 1,
+        createdAt: 1,
+        updatedAt: 1
+      };
+
+      useEditorStore.getState().upsertCharacterProfile(profile);
+      expect(useEditorStore.getState().getCharacterProfile('小红')?.id).toBe('char-1');
+
+      useEditorStore.getState().linkCharacterToShot('shot-1', 'char-1');
+      expect(useEditorStore.getState().shotCharacterLinks).toHaveLength(1);
+
+      useEditorStore.getState().deleteCharacterProfile('char-1');
+      expect(useEditorStore.getState().getCharacterProfile('小红')).toBeUndefined();
+      expect(useEditorStore.getState().shotCharacterLinks).toHaveLength(0);
+    });
+
+    it('should link/unlink character and avoid duplicate links', () => {
+      const profile = {
+        id: 'char-2',
+        assetName: '小蓝',
+        displayName: '小蓝',
+        appearance: {},
+        outfit: { default: '' },
+        forbiddenTraits: [],
+        version: 1,
+        createdAt: 1,
+        updatedAt: 1
+      };
+      useEditorStore.getState().upsertCharacterProfile(profile);
+
+      useEditorStore.getState().linkCharacterToShot('shot-1', 'char-2');
+      useEditorStore.getState().linkCharacterToShot('shot-1', 'char-2');
+      expect(useEditorStore.getState().shotCharacterLinks).toHaveLength(1);
+
+      const linked = useEditorStore.getState().getLinkedCharacters('shot-1');
+      expect(linked).toHaveLength(1);
+      expect(linked[0].assetName).toBe('小蓝');
+
+      useEditorStore.getState().unlinkCharacterFromShot('shot-1', 'char-2');
+      expect(useEditorStore.getState().getLinkedCharacters('shot-1')).toHaveLength(0);
+    });
+
+    it('should save/get report and manage patch lifecycle', () => {
+      useEditorStore.setState({
+        shots: [
+          {
+            id: 'shot-10',
+            description: '原描述',
+            duration: 5,
+            assetRefs: [],
+            videos: [],
+            order: 0
+          }
+        ]
+      });
+
+      useEditorStore.getState().saveConsistencyReport({
+        id: 'report-1',
+        shotId: 'shot-10',
+        characterId: 'char-10',
+        score: { total: 65, identity: 60, outfit: 70, style: 65 },
+        riskLevel: 'high',
+        issues: [],
+        generatedAt: 1
+      });
+      expect(useEditorStore.getState().getConsistencyReport('shot-10', 'char-10')?.riskLevel).toBe('high');
+
+      useEditorStore.getState().saveConsistencyPatch({
+        id: 'patch-1',
+        reportId: 'report-1',
+        shotId: 'shot-10',
+        characterId: 'char-10',
+        before: '原描述',
+        after: '修复后描述 @hero',
+        changes: ['替换服装描述'],
+        confidence: 0.9,
+        explanation: '修复冲突',
+        status: 'pending',
+        createdAt: 1
+      });
+
+      expect(useEditorStore.getState().getPendingPatches()).toHaveLength(1);
+      useEditorStore.getState().applyConsistencyPatch('patch-1');
+      expect(useEditorStore.getState().shots[0].description).toBe('修复后描述 @hero');
+      expect(useEditorStore.getState().shots[0].assetRefs).toEqual(['hero']);
+      expect(useEditorStore.getState().consistencyPatches['patch-1'].status).toBe('applied');
+      expect(useEditorStore.getState().consistencyPatches['patch-1'].appliedAt).toBeTypeOf('number');
+
+      useEditorStore.getState().saveConsistencyPatch({
+        id: 'patch-2',
+        reportId: 'report-1',
+        shotId: 'shot-10',
+        characterId: 'char-10',
+        before: '修复后描述',
+        after: '另一个修复',
+        changes: [],
+        confidence: 0.7,
+        explanation: '',
+        status: 'pending',
+        createdAt: 1
+      });
+      useEditorStore.getState().rejectConsistencyPatch('patch-2');
+      expect(useEditorStore.getState().consistencyPatches['patch-2'].status).toBe('rejected');
+    });
+
+    it('should clear all consistency data', () => {
+      useEditorStore.setState({
+        characterProfiles: {
+          a: {
+            id: 'a',
+            assetName: 'A',
+            displayName: 'A',
+            appearance: {},
+            outfit: { default: '' },
+            forbiddenTraits: [],
+            version: 1,
+            createdAt: 1,
+            updatedAt: 1
+          }
+        },
+        consistencyReports: {
+          k: {
+            id: 'r',
+            shotId: 's',
+            characterId: 'a',
+            score: { total: 90, identity: 90, outfit: 90, style: 90 },
+            riskLevel: 'low',
+            issues: [],
+            generatedAt: 1
+          }
+        },
+        consistencyPatches: {
+          p: {
+            id: 'p',
+            reportId: 'r',
+            shotId: 's',
+            characterId: 'a',
+            before: 'x',
+            after: 'y',
+            changes: [],
+            confidence: 1,
+            explanation: '',
+            status: 'pending',
+            createdAt: 1
+          }
+        },
+        shotCharacterLinks: [{ id: 'l', shotId: 's', characterId: 'a', bindSource: 'manual', createdAt: 1 }]
+      });
+
+      useEditorStore.getState().clearAllConsistencyData();
+      const state = useEditorStore.getState();
+      expect(state.characterProfiles).toEqual({});
+      expect(state.consistencyReports).toEqual({});
+      expect(state.consistencyPatches).toEqual({});
+      expect(state.shotCharacterLinks).toEqual([]);
+    });
+
+    it('should support undo after applying patch', () => {
+      useEditorStore.setState({
+        shots: [
+          {
+            id: 'shot-patch',
+            description: '原始描述',
+            duration: 5,
+            assetRefs: [],
+            videos: [],
+            order: 0
+          }
+        ]
+      });
+
+      useEditorStore.getState().saveConsistencyPatch({
+        id: 'patch-undo',
+        reportId: 'r',
+        shotId: 'shot-patch',
+        characterId: 'c',
+        before: '原始描述',
+        after: '修复后描述',
+        changes: ['修改'],
+        confidence: 0.9,
+        explanation: '',
+        status: 'pending',
+        createdAt: 1
+      });
+
+      useEditorStore.getState().applyConsistencyPatch('patch-undo');
+      expect(useEditorStore.getState().shots[0].description).toBe('修复后描述');
+
+      // Undo should revert the patch application
+      getTemporal().undo();
+      expect(useEditorStore.getState().shots[0].description).toBe('原始描述');
+    });
+
+    it('should update assetRefs when applying patch with new references', () => {
+      useEditorStore.setState({
+        shots: [
+          {
+            id: 'shot-refs',
+            description: '描述',
+            duration: 5,
+            assetRefs: ['hero'],
+            videos: [],
+            order: 0
+          }
+        ]
+      });
+
+      useEditorStore.getState().saveConsistencyPatch({
+        id: 'patch-refs',
+        reportId: 'r',
+        shotId: 'shot-refs',
+        characterId: 'c',
+        before: '@hero 动作',
+        after: '@hero 和 @villain 对战',
+        changes: ['添加反派'],
+        confidence: 0.9,
+        explanation: '',
+        status: 'pending',
+        createdAt: 1
+      });
+
+      useEditorStore.getState().applyConsistencyPatch('patch-refs');
+      expect(useEditorStore.getState().shots[0].assetRefs).toEqual(['hero', 'villain']);
     });
   });
 });

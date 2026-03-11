@@ -1,4 +1,6 @@
-import type { LLMConfig, LLMProvider, ScriptGenerationResult, ScriptShotData, ComplianceResult } from '../types';
+import type { ComplianceResult, LLMConfig, LLMProvider, ScriptGenerationResult, ScriptShotData, ToneConfig } from '../types';
+import { extractJsonFromResponse, fallbackParseShots, parseShotsFromLLMResponse, safeJsonParse } from '../utils/llmParser';
+import { toneConfigToPromptSegment } from '../utils/slateSerializer';
 import { callLLMByBackend } from './backendProxy';
 
 // 默认模型配置
@@ -119,42 +121,19 @@ ${shotsDesc}
     const response = await this.callLLM(prompt);
     
     try {
-      const jsonMatch = response.match(/(```json\s*([\s\S]*?)```)/) || 
-                       response.match(/({[\s\S]*})/) ||
-                       response.match(/(```[\s\S]*?```)/); // catch-all for code blocks without language
+      const jsonStr = extractJsonFromResponse(response);
+      const data = safeJsonParse<{ title?: string; content?: string; description?: string; tags?: string[] }>(jsonStr);
       
-      let jsonStr = '';
-      if (jsonMatch) {
-         // If group 2 exists (from json block), use it. Otherwise use group 1 (full match or other block)
-         // Actually the regex logic above is a bit mixed. Let's simplify extraction logic similar to existing code but robust.
-         // Re-using the logic from parseShotsFromResponse is better.
-         
-         const match = response.match(/```json\s*([\s\S]*?)```/);
-         if (match) {
-             jsonStr = match[1];
-         } else {
-             const simpleMatch = response.match(/{[\s\S]*}/);
-             if (simpleMatch) {
-                 jsonStr = simpleMatch[0];
-             } else {
-                 jsonStr = response;
-             }
-         }
-      } else {
-          jsonStr = response;
+      if (data) {
+        return {
+          platform,
+          title: data.title || '无标题',
+          content: data.content || data.description || '无内容',
+          tags: Array.isArray(data.tags) ? data.tags : []
+        };
       }
       
-      // Clean up jsonStr
-      jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
-      
-      const data = JSON.parse(jsonStr);
-      
-      return {
-        platform,
-        title: data.title || '无标题',
-        content: data.content || data.description || '无内容',
-        tags: Array.isArray(data.tags) ? data.tags : []
-      };
+      throw new Error('无法解析JSON数据');
     } catch (e) {
       console.warn('JSON解析失败，尝试正则提取', e);
       // Fallback regex extraction
@@ -193,28 +172,18 @@ ${shotsDesc}
     const response = await this.callLLM(prompt);
 
     try {
-      let jsonStr = '';
-      const match = response.match(/```json\s*([\s\S]*?)```/);
-      if (match) {
-          jsonStr = match[1];
-      } else {
-          const simpleMatch = response.match(/{[\s\S]*}/);
-          if (simpleMatch) {
-              jsonStr = simpleMatch[0];
-          } else {
-              jsonStr = response;
-          }
+      const jsonStr = extractJsonFromResponse(response);
+      const data = safeJsonParse<{ passed?: boolean; reason?: string; suggestions?: string[] }>(jsonStr);
+      
+      if (data) {
+        return {
+          passed: !!data.passed,
+          reason: data.reason || undefined,
+          suggestions: Array.isArray(data.suggestions) ? data.suggestions : []
+        };
       }
       
-      jsonStr = jsonStr.replace(/^```json/, '').replace(/```$/, '').trim();
-
-      const data = JSON.parse(jsonStr);
-      
-      return {
-        passed: !!data.passed,
-        reason: data.reason || undefined,
-        suggestions: Array.isArray(data.suggestions) ? data.suggestions : []
-      };
+      throw new Error('无法解析JSON数据');
     } catch (e) {
       console.warn('JSON解析失败，进行关键词检测', e);
       // Fallback: simple keyword check
@@ -248,81 +217,14 @@ ${shotsDesc}
   }
 
   private parseShotsFromResponse(response: string): ScriptGenerationResult {
-    try {
-      const jsonMatch = response.match(/```json\s*([\s\S]*?)```/) ||
-                       response.match(/```\s*([\s\S]*?)```/) ||
-                       response.match(/{[\s\S]*}/);
-      
-      let jsonStr = '';
-      if (jsonMatch) {
-        jsonStr = jsonMatch[1] || jsonMatch[0];
-      } else {
-        jsonStr = response;
-      }
-
-      jsonStr = jsonStr.trim();
-      const data = JSON.parse(jsonStr);
-      
-      if (!data.shots || !Array.isArray(data.shots)) {
-        throw new Error('返回数据格式错误：缺少 shots 数组');
-      }
-
-      const validShots = data.shots.map((shot: any, index: number) => ({
-        description: String(shot.description || `分镜 ${index + 1}`),
-        duration: Math.min(Math.max(Number(shot.duration) || 5, 1), 30),
-        assetRefs: Array.isArray(shot.assetRefs) ? shot.assetRefs : []
-      }));
-
-      return {
-        shots: validShots,
-        summary: data.summary || `成功生成 ${validShots.length} 个分镜`
-      };
-    } catch (error) {
-      console.error('解析分镜数据失败:', error);
-      return this.fallbackParse(response);
-    }
-  }
-
-  private fallbackParse(response: string): ScriptGenerationResult {
-    const shots: any[] = [];
-    const lines = response.split('\n');
-    let currentShot: any = null;
+    const result = parseShotsFromLLMResponse(response);
     
-    for (const line of lines) {
-      const trimmed = line.trim();
-      
-      if (/^分镜\s*\d+[:：]|^\d+[.．]\s|^Shot\s*\d+[:：]/i.test(trimmed)) {
-        if (currentShot) {
-          shots.push(currentShot);
-        }
-        currentShot = {
-          description: trimmed.replace(/^分镜\s*\d+[:：]|^\d+[.．]\s|^Shot\s*\d+[:：]\s*/i, ''),
-          duration: 5,
-          assetRefs: []
-        };
-      } else if (currentShot && trimmed) {
-        if (!currentShot.description.includes(trimmed)) {
-          currentShot.description += ' ' + trimmed;
-        }
-      }
+    if (result) {
+      return result;
     }
     
-    if (currentShot) {
-      shots.push(currentShot);
-    }
-
-    if (shots.length === 0) {
-      shots.push({
-        description: '剧本场景：' + response.substring(0, 100) + '...',
-        duration: 5,
-        assetRefs: []
-      });
-    }
-
-    return {
-      shots,
-      summary: `解析到 ${shots.length} 个分镜（备用解析）`
-    };
+    console.error('解析分镜数据失败，使用备用解析');
+    return fallbackParseShots(response);
   }
 
   async generateFromScript(script: string, onProgress?: (msg: string) => void): Promise<ScriptGenerationResult> {
@@ -332,6 +234,77 @@ ${shotsDesc}
     onProgress?.('正在生成分镜...');
     const result = await this.generateShots(analysis, script);
     
+    onProgress?.(`生成完成！共 ${result.shots.length} 个分镜`);
+    return result;
+  }
+
+  async generateFromRichText(
+    markdown: string,
+    toneConfig: ToneConfig,
+    onProgress?: (msg: string) => void
+  ): Promise<ScriptGenerationResult> {
+    const toneSegment = toneConfigToPromptSegment(toneConfig);
+
+    onProgress?.('正在分析富文本内容...');
+    const analysisPrompt = `请仔细阅读以下富文本内容，理解其结构、重点和情节：
+
+格式说明：
+- **加粗文字** 代表用户标注的重点画面要素
+- *斜体文字* 代表旁白或内心独白
+- 标题层级表示场景分割
+- [颜色:xxx]标记表示情绪/氛围提示
+- [高亮:xxx]标记表示关键段落
+
+内容：
+${markdown}
+
+请简要总结：
+1. 这个内容的主要信息是什么？
+2. 有哪些关键角色/元素？
+3. 用户标注的重点内容有哪些？
+4. 内容可分为哪几个关键场景？
+
+请用简短的语言回答。`;
+
+    const analysis = await this.callLLM(analysisPrompt);
+
+    onProgress?.('正在根据调性生成分镜...');
+    const generatePrompt = `基于以下富文本分析，请将内容切分成多个分镜。
+
+内容分析：
+${analysis}
+
+原始富文本：
+${markdown}
+
+${toneSegment}
+
+请将内容切分成 3-10 个分镜，每个分镜包含：
+1. description: 分镜描述（简洁明了，适合视频生成，必须体现上述调性风格特征）
+2. duration: 预估时长（秒），3-15秒之间
+3. assetRefs: 引用的角色/资产名称列表（使用@名称格式）
+
+要求：
+- 描述应具体，包含场景、动作、镜头语言
+- 特别注意用户加粗标注的重点内容，确保在分镜中突出展现
+- 如有角色名，请用 @角色名 格式引用
+- 输出必须是有效的 JSON 格式
+
+请按以下 JSON 格式返回：
+{
+  "shots": [
+    {
+      "description": "分镜描述...",
+      "duration": 5,
+      "assetRefs": []
+    }
+  ],
+  "summary": "内容概要"
+}`;
+
+    const response = await this.callLLM(generatePrompt);
+    const result = this.parseShotsFromResponse(response);
+
     onProgress?.(`生成完成！共 ${result.shots.length} 个分镜`);
     return result;
   }

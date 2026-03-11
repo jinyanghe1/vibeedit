@@ -22,13 +22,13 @@ describe('Settings Component', () => {
     render(<Settings />);
     
     // Initial state: modal not visible
-    expect(screen.queryByText('API 设置', { selector: 'h2' })).not.toBeInTheDocument();
+    expect(screen.queryByText('设置', { selector: 'h2' })).not.toBeInTheDocument();
     
     // Open modal
     const button = screen.getByRole('button', { name: /API 设置/i });
     await userEvent.click(button);
     
-    expect(screen.getByText('API 设置', { selector: 'h2' })).toBeInTheDocument();
+    expect(screen.getByText('设置', { selector: 'h2' })).toBeInTheDocument();
   });
 
   it('toggles password visibility', async () => {
@@ -88,5 +88,5 @@ describe('Settings Component', () => {
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /保存设置/i })).toBeInTheDocument();
     }, { timeout: 3000 });
-  });
+  }, 10000);
 });

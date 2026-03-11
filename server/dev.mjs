@@ -1,4 +1,11 @@
 import { spawn } from 'node:child_process';
+import { checkNodeVersion } from './check-node.mjs';
+
+// 首先检查 Node.js 版本
+const isVersionOK = checkNodeVersion();
+if (!isVersionOK) {
+  process.exit(1);
+}
 
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const children = [];

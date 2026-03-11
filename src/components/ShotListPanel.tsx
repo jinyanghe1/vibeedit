@@ -1,43 +1,71 @@
-import { useState, useRef } from 'react';
-import { useEditorStore } from '../store/editorStore';
-import { ShotCard } from './ShotCard';
-import { ShotEditor } from './ShotEditor';
-import { AssetManager } from './AssetManager';
-import { Settings } from './Settings';
-import { ScriptToShots } from './ScriptToShots';
-import { WebNovelInspiration } from './WebNovelInspiration';
-import { ShotTimeline } from './ShotTimeline';
-import { Plus, Clapperboard, FileText, List, Lightbulb, Wand2, Download, Upload, Loader2 } from 'lucide-react';
-import type { Shot, Asset } from '../types';
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent
+    closestCenter,
+    DndContext,
+    KeyboardSensor,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    type DragEndEvent
 } from '@dnd-kit/core';
 import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy
+    arrayMove,
+    SortableContext,
+    sortableKeyboardCoordinates,
+    verticalListSortingStrategy
 } from '@dnd-kit/sortable';
+import { Clapperboard, Download, FileText, Lightbulb, List, Loader2, PenTool, Plus, Tag, Upload, Wand2 } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { useEditorStore } from '../store/editorStore';
+import type { Asset, Shot, ShotTag } from '../types';
+import { SHOT_TAGS } from '../types';
+import { AssetManager } from './AssetManager';
+import { RichTextToShots } from './RichTextToShots';
+import { ScriptToShots } from './ScriptToShots';
+import { Settings } from './Settings';
+import { ShotCard } from './ShotCard';
+import { ShotEditor } from './ShotEditor';
+import { ShotTimeline } from './ShotTimeline';
+import { WebNovelInspiration } from './WebNovelInspiration';
 
-type TabType = 'shots' | 'script' | 'inspiration';
+type TabType = 'shots' | 'script' | 'inspiration' | 'richtext';
+
+const TAG_COLORS: Record<ShotTag, string> = {
+  '动作': 'bg-red-500/20 text-red-400',
+  '对话': 'bg-blue-500/20 text-blue-400',
+  '特写': 'bg-purple-500/20 text-purple-400',
+  '全景': 'bg-green-500/20 text-green-400',
+  '过场': 'bg-gray-500/20 text-gray-400',
+  '转场': 'bg-yellow-500/20 text-yellow-400',
+  '情感': 'bg-pink-500/20 text-pink-400',
+  '战斗': 'bg-orange-500/20 text-orange-400',
+};
 
 export function ShotListPanel() {
   const [activeTab, setActiveTab] = useState<TabType>('shots');
   const [isAdding, setIsAdding] = useState(false);
   const [editingShotId, setEditingShotId] = useState<string | null>(null);
   const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+  const [showTagFilter, setShowTagFilter] = useState(false);
+  const [filterTags, setFilterTags] = useState<ShotTag[]>([]);
   const importRef = useRef<HTMLInputElement>(null);
   
   const { shots, assets, selectShot, selectedShotId, reorderShots, generateAllShots, importProject } = useEditorStore();
 
   // 按order排序
   const sortedShots = [...shots].sort((a, b) => a.order - b.order);
+
+  // 标签过滤逻辑
+  const filteredShots = filterTags.length > 0
+    ? sortedShots.filter(s => s.tags && s.tags.some(t => filterTags.includes(t)))
+    : sortedShots;
+
+  const toggleFilterTag = (tag: ShotTag) => {
+    setFilterTags(prev =>
+      prev.includes(tag)
+        ? prev.filter(t => t !== tag)
+        : [...prev, tag]
+    );
+  };
 
   // 拖拽传感器
   const sensors = useSensors(
@@ -182,6 +210,17 @@ export function ShotListPanel() {
           <Lightbulb size={14} />
           网文灵感
         </button>
+        <button
+          onClick={() => setActiveTab('richtext')}
+          className={`flex-1 flex items-center justify-center gap-1 px-2 py-3 text-xs font-medium transition-colors border-b-2 ${
+            activeTab === 'richtext'
+              ? 'text-green-400 border-green-500 bg-green-500/10'
+              : 'text-gray-400 border-transparent hover:text-gray-300 hover:bg-gray-800/50'
+          }`}
+        >
+          <PenTool size={14} />
+          富文本
+        </button>
       </div>
 
       {/* 内容区域 */}
@@ -189,8 +228,44 @@ export function ShotListPanel() {
         <ScriptToShots />
       ) : activeTab === 'inspiration' ? (
         <WebNovelInspiration />
+      ) : activeTab === 'richtext' ? (
+        <RichTextToShots />
       ) : (
         <>
+          {/* 标签过滤条 */}
+          {sortedShots.some(s => s.tags && s.tags.length > 0) && (
+            <div className="px-3 py-2 border-b border-gray-800 bg-gray-900/80">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  onClick={() => setShowTagFilter(!showTagFilter)}
+                  className={`flex items-center gap-1 text-xs px-2 py-1 rounded border transition-colors ${
+                    filterTags.length > 0 ? 'bg-blue-600/30 text-blue-300 border-blue-500/50' : 'bg-gray-800 text-gray-500 border-gray-700 hover:text-gray-300'
+                  }`}
+                >
+                  <Tag size={11} />
+                  筛选{filterTags.length > 0 ? ` (${filterTags.length})` : ''}
+                </button>
+                {showTagFilter && SHOT_TAGS.map(tag => (
+                  <button
+                    key={tag}
+                    onClick={() => toggleFilterTag(tag)}
+                    className={`text-xs px-2 py-0.5 rounded border transition-all ${
+                      filterTags.includes(tag) ? TAG_COLORS[tag] + ' border-current' : 'bg-transparent text-gray-600 border-gray-700 hover:border-gray-500 hover:text-gray-400'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+                {filterTags.length > 0 && (
+                  <button onClick={() => setFilterTags([])} className="text-xs text-gray-500 hover:text-gray-300 ml-1">清除</button>
+                )}
+              </div>
+              {filterTags.length > 0 && (
+                <p className="text-xs text-gray-600 mt-1">显示 {filteredShots.length}/{sortedShots.length} 个分镜</p>
+              )}
+            </div>
+          )}
+
           {/* 分镜列表 */}
           <div className="flex-1 overflow-auto p-4">
             {sortedShots.length === 0 ? (
@@ -222,11 +297,11 @@ export function ShotListPanel() {
                 onDragEnd={handleDragEnd}
               >
                 <SortableContext
-                  items={sortedShots.map(s => s.id)}
+                  items={filteredShots.map(s => s.id)}
                   strategy={verticalListSortingStrategy}
                 >
                   <div className="space-y-3">
-                    {sortedShots.map((shot) => (
+                    {filteredShots.map((shot) => (
                       <ShotCard
                         key={shot.id}
                         shot={shot}

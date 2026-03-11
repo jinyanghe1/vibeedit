@@ -90,7 +90,7 @@ describe('ShotEditor Component', () => {
     await userEvent.click(addButton);
     
     const state = useEditorStore.getState();
-    expect(state.addShot).toHaveBeenCalledWith('New shot description', 8);
+    expect(state.addShot).toHaveBeenCalledWith('New shot description', 8, undefined);
     expect(mockOnClose).toHaveBeenCalled();
   });
 

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useEditorStore } from '../store/editorStore';
 import { SHOT_TAGS } from '../types';
-import type { ShotTag } from '../types';
-import { Plus, Clock, FileText, Tag } from 'lucide-react';
+import type { ShotTag, ShotAssetInsertion, AssetInsertionMode } from '../types';
+import { Plus, Clock, FileText, Tag, Layers, X, ArrowUp, ArrowDown, Image } from 'lucide-react';
 
 const TAG_COLORS: Record<ShotTag, string> = {
   '动作': 'bg-red-500/20 text-red-300 border-red-500/40',
@@ -15,6 +15,14 @@ const TAG_COLORS: Record<ShotTag, string> = {
   '战斗': 'bg-orange-500/20 text-orange-300 border-orange-500/40',
 };
 
+const MODE_LABELS: Record<AssetInsertionMode, { label: string; icon: typeof ArrowUp; color: string }> = {
+  before: { label: '前置', icon: ArrowUp, color: 'text-blue-400' },
+  after: { label: '后置', icon: ArrowDown, color: 'text-orange-400' },
+  overlay: { label: '叠加', icon: Layers, color: 'text-green-400' },
+};
+
+const generateId = () => Math.random().toString(36).substring(2, 15);
+
 interface ShotEditorProps {
   editShotId?: string | null;
   onClose?: () => void;
@@ -24,8 +32,9 @@ export function ShotEditor({ editShotId, onClose }: ShotEditorProps) {
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState(5);
   const [selectedTags, setSelectedTags] = useState<ShotTag[]>([]);
+  const [showAssetPicker, setShowAssetPicker] = useState(false);
   
-  const { addShot, updateShot, getShotById, assets } = useEditorStore();
+  const { addShot, updateShot, getShotById, assets, addAssetInsertion, removeAssetInsertion, updateAssetInsertion } = useEditorStore();
 
   useEffect(() => {
     if (editShotId) {

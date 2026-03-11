@@ -74,10 +74,8 @@ describe('AssetManager Component', () => {
     expect(screen.queryByText('暂无资产')).not.toBeInTheDocument();
     
     // Now remove the asset
-    const assetCard = screen.getByText('@test_asset').parentElement;
-    const assetRemoveButton = assetCard?.querySelector('button');
-    expect(assetRemoveButton).toBeTruthy();
-    await userEvent.click(assetRemoveButton as HTMLButtonElement);
+    const assetRemoveButton = screen.getByRole('button', { name: '删除资产 test_asset' });
+    await userEvent.click(assetRemoveButton);
     
     // Verify removal
     expect(useEditorStore.getState().assets['test_asset']).toBeUndefined();

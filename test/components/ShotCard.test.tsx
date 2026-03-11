@@ -80,6 +80,12 @@ describe('ShotCard Component', () => {
     expect(defaultProps.onSelect).toHaveBeenCalledTimes(1);
   });
 
+  it('calls onSelect when clicking non-control area of the card', async () => {
+    render(<ShotCard {...defaultProps} />);
+    await userEvent.click(screen.getByText('#1'));
+    expect(defaultProps.onSelect).toHaveBeenCalledTimes(1);
+  });
+
   it('highlights chinese asset refs in description', () => {
     const chineseShot: Shot = {
       ...mockShot,
@@ -134,6 +140,7 @@ describe('ShotCard Component', () => {
     
     const state = useEditorStore.getState();
     expect(state.generateVideo).toHaveBeenCalledWith('shot-1');
+    expect(defaultProps.onSelect).not.toHaveBeenCalled();
   });
 
   it('renders video selector if videos exist', async () => {

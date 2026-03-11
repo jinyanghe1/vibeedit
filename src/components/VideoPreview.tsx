@@ -8,20 +8,26 @@ import {
   Maximize,
   SkipBack,
   SkipForward,
-  Film
+  Film,
+  Split
 } from 'lucide-react';
 
 export function VideoPreview() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoBRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isMuted, setIsMuted] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareVideoId, setCompareVideoId] = useState<string | null>(null);
 
   const { getSelectedShot, getSelectedVideo, selectedVideoId } = useEditorStore();
 
   const selectedShot = getSelectedShot();
   const selectedVideo = getSelectedVideo();
+  const activeVideoId = selectedVideo?.id || selectedVideoId;
+  const compareVideo = selectedShot?.videos.find(v => v.id === compareVideoId);
 
   // 当选择的视频改变时，重置播放器
   useEffect(() => {
@@ -132,34 +138,118 @@ export function VideoPreview() {
           <h3 className="text-sm font-medium text-white">分镜 #{selectedShot.order + 1}</h3>
           <p className="text-xs text-gray-400 line-clamp-1">{selectedShot.description}</p>
         </div>
-        <div className="text-xs text-gray-500">
-          {selectedShot.videos.findIndex(v => v.id === selectedVideoId) + 1} / {selectedShot.videos.length} 版本
+        <div className="flex items-center gap-3">
+          {selectedShot.videos.length >= 2 && (
+            <>
+              <button
+                onClick={() => {
+                  if (!compareMode) {
+                    setCompareMode(true);
+                    setCompareVideoId(selectedShot.videos.find(v => v.id !== activeVideoId)?.id || null);
+                  } else {
+                    setCompareMode(false);
+                    setCompareVideoId(null);
+                  }
+                }}
+                className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
+                  compareMode ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-white'
+                }`}
+              >
+                <Split size={14} />
+                {compareMode ? '退出对比' : 'A/B 对比'}
+              </button>
+              {compareMode && (
+                <select
+                  value={compareVideoId || ''}
+                  onChange={e => setCompareVideoId(e.target.value || null)}
+                  className="text-xs bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-300 focus:outline-none"
+                >
+                  {selectedShot.videos.filter(v => v.id !== activeVideoId).map((v, idx) => (
+                    <option key={v.id} value={v.id}>
+                      版本 {selectedShot.videos.findIndex(x => x.id === v.id) + 1}
+                      {idx === 0 ? ' (最新)' : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </>
+          )}
+          <span className="text-xs text-gray-500">
+            {selectedShot.videos.findIndex(v => v.id === activeVideoId) + 1} / {selectedShot.videos.length} 版本
+          </span>
         </div>
       </div>
 
       {/* 视频播放器 */}
-      <div className="flex-1 flex items-center justify-center bg-black relative">
-        <video
-          ref={videoRef}
-          src={selectedVideo.url}
-          className="max-w-full max-h-full"
-          onTimeUpdate={handleTimeUpdate}
-          onLoadedMetadata={handleLoadedMetadata}
-          onEnded={handleEnded}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
-        />
-
-        {/* 中央播放按钮 (暂停时显示) */}
-        {!isPlaying && (
-          <button
-            onClick={togglePlay}
-            className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors"
-          >
-            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
-              <Play size={40} className="text-white ml-1" />
+      <div className={`flex-1 flex ${compareMode ? 'flex-row' : 'flex-col'} items-center justify-center bg-black relative`}>
+        {compareMode && compareVideo ? (
+          <>
+            {/* A/B 对比模式 */}
+            <div className="flex-1 h-full flex flex-col border-r border-gray-800">
+              <div className="px-3 py-1 bg-gray-900 text-xs text-blue-400 text-center border-b border-gray-800">版本 A（当前）</div>
+              <div className="flex-1 flex items-center justify-center relative">
+                <video
+                  ref={videoRef}
+                  src={selectedVideo.url}
+                  className="max-w-full max-h-full"
+                  onTimeUpdate={handleTimeUpdate}
+                  onLoadedMetadata={handleLoadedMetadata}
+                  onEnded={handleEnded}
+                  onPlay={() => {
+                    setIsPlaying(true);
+                    videoBRef.current?.play();
+                  }}
+                  onPause={() => {
+                    setIsPlaying(false);
+                    videoBRef.current?.pause();
+                  }}
+                  onSeeked={() => {
+                    if (videoBRef.current && videoRef.current) {
+                      videoBRef.current.currentTime = videoRef.current.currentTime;
+                    }
+                  }}
+                />
+              </div>
             </div>
-          </button>
+            <div className="flex-1 h-full flex flex-col">
+              <div className="px-3 py-1 bg-gray-900 text-xs text-purple-400 text-center border-b border-gray-800">
+                版本 B（{selectedShot.videos.findIndex(v => v.id === compareVideoId) + 1}）
+              </div>
+              <div className="flex-1 flex items-center justify-center relative">
+                <video
+                  ref={videoBRef}
+                  src={compareVideo.url}
+                  className="max-w-full max-h-full"
+                  muted
+                />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <video
+              ref={videoRef}
+              src={selectedVideo.url}
+              className="max-w-full max-h-full"
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleLoadedMetadata}
+              onEnded={handleEnded}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+            />
+
+            {/* 中央播放按钮 (暂停时显示) */}
+            {!isPlaying && (
+              <button
+                onClick={togglePlay}
+                className="absolute inset-0 flex items-center justify-center bg-black/30 hover:bg-black/40 transition-colors"
+              >
+                <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm">
+                  <Play size={40} className="text-white ml-1" />
+                </div>
+              </button>
+            )}
+          </>
         )}
       </div>
 

@@ -15,7 +15,8 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
-  GripVertical
+  GripVertical,
+  Copy
 } from 'lucide-react';
 
 const TAG_COLORS: Record<ShotTag, string> = {
@@ -47,7 +48,8 @@ export function ShotCard({ shot, isSelected, onSelect, onEdit }: ShotCardProps) 
     selectedVideoId,
     generationStatus,
     assets,
-    hasVideoApiKey
+    hasVideoApiKey,
+    duplicateShot
   } = useEditorStore();
 
   const {
@@ -103,10 +105,18 @@ export function ShotCard({ shot, isSelected, onSelect, onEdit }: ShotCardProps) 
     });
   };
 
+  const handleCardClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    // 点击操作控件时不改变预览选中，避免误触
+    if (target.closest('button, input, select, textarea, a')) return;
+    onSelect();
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
+      onClick={handleCardClick}
       className={`relative p-4 rounded-lg border transition-all ${
         isSelected ? 'bg-blue-900/30 border-blue-500' : 'bg-gray-800/50 border-gray-700 hover:border-gray-600'
       } ${isDragging ? 'shadow-lg' : ''}`}
@@ -133,6 +143,9 @@ export function ShotCard({ shot, isSelected, onSelect, onEdit }: ShotCardProps) 
               <button onClick={() => { onEdit(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors">
                 <Edit2 size={14} />编辑
               </button>
+              <button onClick={() => { duplicateShot(shot.id); setShowMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors">
+                <Copy size={14} />复制
+              </button>
               <button onClick={() => { handleDelete(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-400 hover:bg-gray-700 transition-colors">
                 <Trash2 size={14} />删除
               </button>
@@ -142,7 +155,13 @@ export function ShotCard({ shot, isSelected, onSelect, onEdit }: ShotCardProps) 
       </div>
 
       {/* 描述内容 */}
-      <div className="text-sm text-gray-200 mb-2 cursor-pointer" onClick={onSelect}>
+      <div
+        className="text-sm text-gray-200 mb-2 cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect();
+        }}
+      >
         {renderHighlightedDescription()}
       </div>
 

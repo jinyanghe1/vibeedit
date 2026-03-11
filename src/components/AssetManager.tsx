@@ -1,13 +1,17 @@
 import { useState, useRef } from 'react';
 import { useEditorStore } from '../store/editorStore';
-import { ImagePlus, X, Upload, User, Edit2, Check } from 'lucide-react';
+import { ImagePlus, X, Upload, User, Edit2, Check, Film, Type, Image } from 'lucide-react';
+import type { AssetType, TextCard } from '../types';
+import { TextCardEditor } from './TextCardEditor';
 
 export function AssetManager() {
   const [isOpen, setIsOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [previewUrl, setPreviewUrl] = useState('');
-  const [editingDesc, setEditingDesc] = useState<string | null>(null); // assetName being edited
+  const [assetType, setAssetType] = useState<AssetType>('image');
+  const [showTextCardEditor, setShowTextCardEditor] = useState(false);
+  const [editingDesc, setEditingDesc] = useState<string | null>(null);
   const [editDescValue, setEditDescValue] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -24,19 +28,33 @@ export function AssetManager() {
       if (!name) {
         setName(file.name.replace(/\.[^/.]+$/, ''));
       }
+      // Auto-detect type from file
+      if (file.type.startsWith('video/')) {
+        setAssetType('video');
+      } else {
+        setAssetType('image');
+      }
     }
   };
 
   const handleAddAsset = () => {
     if (name.trim() && previewUrl) {
-      addAsset(name.trim(), previewUrl, 'image', description.trim() || undefined);
+      addAsset(name.trim(), previewUrl, assetType, description.trim() || undefined);
       setName('');
       setDescription('');
       setPreviewUrl('');
+      setAssetType('image');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     }
+  };
+
+  const handleAddTextCard = (card: TextCard) => {
+    const cardName = name.trim() || `文字卡-${Date.now()}`;
+    addAsset(cardName, '', 'text-card', undefined, card);
+    setShowTextCardEditor(false);
+    setName('');
   };
 
   const handleRemoveAsset = (assetName: string) => {
@@ -104,11 +122,11 @@ export function AssetManager() {
                 </div>
 
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">图片</label>
+                  <label className="block text-sm text-gray-400 mb-1">文件</label>
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     onChange={handleFileChange}
                     className="hidden"
                   />
@@ -150,6 +168,35 @@ export function AssetManager() {
                 >
                   添加资产
                 </button>
+
+                <div className="border-t border-gray-600 pt-3">
+                  <button
+                    onClick={() => setShowTextCardEditor(!showTextCardEditor)}
+                    className="w-full flex items-center justify-center gap-2 py-2 bg-purple-600/30 hover:bg-purple-600/50 text-purple-300 border border-purple-500/30 rounded-lg transition-colors text-sm"
+                  >
+                    <Type size={16} />
+                    创建文字卡片
+                  </button>
+                </div>
+
+                {showTextCardEditor && (
+                  <div className="mt-3 p-3 bg-gray-800 rounded-lg border border-gray-600">
+                    <div className="mb-3">
+                      <label className="block text-sm text-gray-400 mb-1">卡片名称</label>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="例如: 章节标题"
+                        className="w-full px-3 py-2 bg-gray-900 border border-gray-600 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-blue-500 text-sm"
+                      />
+                    </div>
+                    <TextCardEditor
+                      onChange={handleAddTextCard}
+                      onCancel={() => setShowTextCardEditor(false)}
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -171,13 +218,32 @@ export function AssetManager() {
                       key={asset.id}
                       className="flex gap-3 bg-gray-700/30 rounded-lg p-3 group"
                     >
-                      <img
-                        src={asset.url}
-                        alt={asset.name}
-                        className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
-                      />
+                      {asset.type === 'text-card' ? (
+                        <div className="w-16 h-16 flex items-center justify-center bg-gray-800 rounded-lg flex-shrink-0 text-purple-400">
+                          <Type size={24} />
+                        </div>
+                      ) : asset.type === 'video' ? (
+                        <div className="w-16 h-16 flex items-center justify-center bg-gray-800 rounded-lg flex-shrink-0 text-blue-400">
+                          <Film size={24} />
+                        </div>
+                      ) : (
+                        <img
+                          src={asset.url}
+                          alt={asset.name}
+                          className="w-16 h-16 object-cover rounded-lg flex-shrink-0"
+                        />
+                      )}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-white">@{asset.name}</p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium text-white">@{asset.name}</p>
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${
+                            asset.type === 'text-card' ? 'bg-purple-500/20 text-purple-400' :
+                            asset.type === 'video' ? 'bg-blue-500/20 text-blue-400' :
+                            'bg-green-500/20 text-green-400'
+                          }`}>
+                            {asset.type === 'text-card' ? '文字' : asset.type === 'video' ? '视频' : '图片'}
+                          </span>
+                        </div>
                         {editingDesc === asset.name ? (
                           <div className="flex gap-1 mt-1">
                             <input
@@ -207,6 +273,7 @@ export function AssetManager() {
                       </div>
                       <button
                         onClick={() => handleRemoveAsset(asset.name)}
+                        aria-label={`删除资产 ${asset.name}`}
                         className="p-1 text-gray-600 hover:text-red-400 transition-colors flex-shrink-0 opacity-0 group-hover:opacity-100"
                       >
                         <X size={16} />
