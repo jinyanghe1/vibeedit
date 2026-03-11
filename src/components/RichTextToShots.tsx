@@ -1,11 +1,13 @@
 import { CheckCircle, ChevronDown, ChevronUp, Import, Loader2, Wand2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { Descendant } from 'slate';
 import { useEditorStore } from '../store/editorStore';
 import type { RichTextPreprocessResult, ScriptGenerationResult, ToneConfig } from '../types';
+import { buildFactRepairedDraft, collectMissingFacts } from '../utils/factRepairUtils';
 import {
   checkEvidenceMatch,
   extractEvidenceKeywordsFromCoverage,
+  extractKeywordsFromEvidence,
   generateHighlightSegments,
   getEvidenceLocationLabel,
   normalizeKeyword,
@@ -15,10 +17,13 @@ import { serializeToMarkdown, serializeToPlainText } from '../utils/slateSeriali
 import { RichTextEditor, createInitialValue } from './RichTextEditor';
 import { ToneSelector } from './ToneSelector';
 
-interface CoverageViewItem {
-  factId: string;
-  kept: boolean;
-  evidence?: string;
+interface DraftSnapshot {
+  id: string;
+  label: string;
+  source: 'preprocess' | 'repair';
+  text: string;
+  createdAt: number;
+  appendedFactIds?: string[];
 }
 
 function HighlightedText({ text, keywords }: { text: string; keywords?: string[] }) {
@@ -27,7 +32,11 @@ function HighlightedText({ text, keywords }: { text: string; keywords?: string[]
     <>
       {segments.map((segment, index) =>
         segment.isHighlight ? (
-          <mark key={`${segment.text}-${index}`} className="bg-yellow-500/30 text-yellow-100 rounded px-0.5">
+          <mark 
+            key={`${segment.text}-${index}`} 
+            className="bg-yellow-500/30 text-yellow-100 rounded px-0.5 transition-all duration-500"
+            data-keyword={segment.matchedKeyword?.toLowerCase()}
+          >
             {segment.text}
           </mark>
         ) : (
@@ -58,6 +67,14 @@ export function RichTextToShots() {
   const [selectedFactId, setSelectedFactId] = useState<string>('all');
   const [onlyMissingCoverage, setOnlyMissingCoverage] = useState(false);
   const [activeCoverageFactId, setActiveCoverageFactId] = useState<string | null>(null);
+  const [repairedDraftText, setRepairedDraftText] = useState<string | null>(null);
+  const [repairedFactIds, setRepairedFactIds] = useState<string[]>([]);
+  const [draftSnapshots, setDraftSnapshots] = useState<DraftSnapshot[]>([]);
+  const [activeSnapshotId, setActiveSnapshotId] = useState<string | null>(null);
+
+  const sourceContainerRef = useRef<HTMLDivElement>(null);
+  const draftContainerRef = useRef<HTMLDivElement>(null);
+  const snapshotSeqRef = useRef(0);
 
   const { generateShotsFromRichText, preprocessRichTextForStoryboard, addShots, hasLLMConfig } = useEditorStore();
 
@@ -75,6 +92,21 @@ export function RichTextToShots() {
       ),
     [preprocessResult?.coverageChecklist, selectedFactId]
   );
+  const missingFacts = useMemo(
+    () => (preprocessResult ? collectMissingFacts(preprocessResult) : []),
+    [preprocessResult]
+  );
+  const activeSnapshot = useMemo(
+    () => draftSnapshots.find((snapshot) => snapshot.id === activeSnapshotId) || null,
+    [draftSnapshots, activeSnapshotId]
+  );
+  const activeSnapshotIndex = useMemo(
+    () => draftSnapshots.findIndex((snapshot) => snapshot.id === activeSnapshotId),
+    [draftSnapshots, activeSnapshotId]
+  );
+  const canRollbackSnapshot = activeSnapshotIndex > 0;
+  const isRepairSnapshotActive = activeSnapshot?.source === 'repair';
+  const displayPreprocessedText = activeSnapshot?.text || repairedDraftText || preprocessResult?.preprocessedText || '';
   const visibleCoverage = useMemo(
     () => (onlyMissingCoverage ? factFilteredCoverage.filter((item) => !item.kept) : factFilteredCoverage),
     [factFilteredCoverage, onlyMissingCoverage]
@@ -101,10 +133,10 @@ export function RichTextToShots() {
         evidenceMatch: checkEvidenceMatch(
           item.evidence || '',
           preprocessSourceMarkdown,
-          preprocessResult?.preprocessedText || ''
+          displayPreprocessedText
         )
       })),
-    [visibleCoverage, preprocessSourceMarkdown, preprocessResult?.preprocessedText]
+    [visibleCoverage, preprocessSourceMarkdown, displayPreprocessedText]
   );
   const sourceEvidenceHits = useMemo(
     () =>
@@ -121,9 +153,99 @@ export function RichTextToShots() {
     [visibleCoverageWithMatch]
   );
 
+  const scrollToFirstHit = (container: HTMLDivElement | null, keywords: string[]) => {
+    if (!container || keywords.length === 0) return;
+    
+    const normalizedKeywords = keywords.map(k => k.toLowerCase());
+    const marks = container.querySelectorAll('mark');
+    
+    for (const mark of Array.from(marks)) {
+      const markKeyword = mark.getAttribute('data-keyword');
+      if (markKeyword && normalizedKeywords.includes(markKeyword)) {
+        mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        
+        // 添加临时高亮增强效果
+        mark.classList.remove('bg-yellow-500/30');
+        mark.classList.add('bg-yellow-400', 'ring-4', 'ring-yellow-400/50', 'scale-110');
+        
+        setTimeout(() => {
+          mark.classList.remove('bg-yellow-400', 'ring-4', 'ring-yellow-400/50', 'scale-110');
+          mark.classList.add('bg-yellow-500/30');
+        }, 1500);
+        
+        break;
+      }
+    }
+  };
+
+  const handleCoverageItemClick = (item: any) => {
+    setActiveCoverageFactId(item.factId);
+    setSelectedFactId(item.factId);
+    
+    // 延迟执行滚动，确保状态更新后的高亮渲染已完成
+    setTimeout(() => {
+      const itemKeywords = extractKeywordsFromEvidence(item.evidence || '');
+      if (itemKeywords.length > 0) {
+        scrollToFirstHit(sourceContainerRef.current, itemKeywords);
+        scrollToFirstHit(draftContainerRef.current, itemKeywords);
+      }
+    }, 100);
+  };
+
+  const appendDraftSnapshot = (
+    source: DraftSnapshot['source'],
+    text: string,
+    appendedFactIds: string[] = [],
+    options: { reset?: boolean } = {}
+  ) => {
+    const base = options.reset ? [] : draftSnapshots;
+    const sourceCount = base.filter((snapshot) => snapshot.source === source).length + 1;
+    const id = `snap-${Date.now()}-${snapshotSeqRef.current++}`;
+    const label = source === 'preprocess' ? `预处理v${sourceCount}` : `补齐v${sourceCount}`;
+    const next = [
+      ...base,
+      {
+        id,
+        label,
+        source,
+        text,
+        createdAt: Date.now(),
+        appendedFactIds
+      }
+    ].slice(-8);
+
+    setDraftSnapshots(next);
+    setActiveSnapshotId(id);
+  };
+
+  const activateSnapshot = (snapshot: DraftSnapshot, progressMessage?: string) => {
+    setActiveSnapshotId(snapshot.id);
+    if (snapshot.source === 'repair') {
+      setRepairedDraftText(snapshot.text);
+      setRepairedFactIds(snapshot.appendedFactIds || []);
+    } else {
+      setRepairedDraftText(null);
+      setRepairedFactIds([]);
+    }
+    if (progressMessage) {
+      setProgress(progressMessage);
+    }
+  };
+
+  const handleRollbackSnapshot = () => {
+    if (!canRollbackSnapshot) {
+      setProgress('没有可回滚的上一版本。');
+      return;
+    }
+
+    const previousSnapshot = draftSnapshots[activeSnapshotIndex - 1];
+    activateSnapshot(previousSnapshot, `已回滚到 ${previousSnapshot.label}。`);
+  };
+
   const runPreprocess = async (markdown: string): Promise<RichTextPreprocessResult> => {
     setIsPreprocessing(true);
     try {
+      const shouldResetSnapshots = preprocessSourceMarkdown !== markdown;
       const preprocessed = await preprocessRichTextForStoryboard(markdown, (msg) => {
         setProgress(msg);
       });
@@ -131,7 +253,10 @@ export function RichTextToShots() {
       setSelectedFactId('all');
       setOnlyMissingCoverage(false);
       setActiveCoverageFactId(null);
+      setRepairedDraftText(null);
+      setRepairedFactIds([]);
       setPreprocessSourceMarkdown(markdown);
+      appendDraftSnapshot('preprocess', preprocessed.preprocessedText, [], { reset: shouldResetSnapshots });
       return preprocessed;
     } finally {
       setIsPreprocessing(false);
@@ -161,7 +286,7 @@ export function RichTextToShots() {
 
       if (usePreprocessedDraft) {
         if (hasFreshPreprocess && preprocessResult) {
-          markdownForGeneration = preprocessResult.preprocessedText;
+          markdownForGeneration = displayPreprocessedText;
         } else {
           try {
             const preprocessed = await runPreprocess(currentMarkdown);
@@ -183,6 +308,34 @@ export function RichTextToShots() {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  const handleRepairMissingFacts = () => {
+    if (!preprocessResult) return;
+    const { repairedText, appendedFacts } = buildFactRepairedDraft(displayPreprocessedText, missingFacts);
+
+    if (appendedFacts.length === 0) {
+      setProgress('当前预处理稿已覆盖缺失事实，无需补齐。');
+      return;
+    }
+
+    setRepairedDraftText(repairedText);
+    const appendedFactIds = appendedFacts.map((item) => item.id);
+    setRepairedFactIds(appendedFactIds);
+    appendDraftSnapshot('repair', repairedText, appendedFactIds);
+    setProgress(`已补齐 ${appendedFacts.length} 条缺失事实，生成将优先使用补齐稿。`);
+  };
+
+  const handleResetRepair = () => {
+    const latestPreprocessSnapshot = [...draftSnapshots].reverse().find((snapshot) => snapshot.source === 'preprocess');
+    if (latestPreprocessSnapshot) {
+      activateSnapshot(latestPreprocessSnapshot, '已回退到原预处理稿。');
+      return;
+    }
+
+    setRepairedDraftText(null);
+    setRepairedFactIds([]);
+    setProgress('已回退到原预处理稿。');
   };
 
   const handleImportAll = () => {
@@ -263,17 +416,59 @@ export function RichTextToShots() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div className="space-y-1">
                 <div className="text-[11px] text-gray-500">原文（预处理输入）</div>
-                <div className="w-full h-28 px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-gray-400 overflow-auto whitespace-pre-wrap">
+                <div 
+                  ref={sourceContainerRef}
+                  className="w-full h-28 px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-gray-400 overflow-auto whitespace-pre-wrap scroll-smooth"
+                >
                   <HighlightedText text={preprocessSourceMarkdown} keywords={highlightKeywords} />
                 </div>
               </div>
               <div className="space-y-1">
-                <div className="text-[11px] text-gray-500">预处理稿件（用于分镜生成）</div>
-                <div className="w-full h-28 px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-gray-300 overflow-auto whitespace-pre-wrap">
-                  <HighlightedText text={preprocessResult.preprocessedText} keywords={highlightKeywords} />
+                <div className="text-[11px] text-gray-500">
+                  预处理稿件（用于分镜生成）
+                  {isRepairSnapshotActive || repairedDraftText ? ' · 已补齐缺失项' : ''}
+                </div>
+                <div 
+                  ref={draftContainerRef}
+                  className="w-full h-28 px-2 py-1.5 bg-gray-950 border border-gray-700 rounded text-xs text-gray-300 overflow-auto whitespace-pre-wrap scroll-smooth"
+                >
+                  <HighlightedText text={displayPreprocessedText} keywords={highlightKeywords} />
                 </div>
               </div>
             </div>
+
+            {draftSnapshots.length > 0 && (
+              <div className="bg-gray-950/80 border border-gray-800 rounded p-2 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] text-gray-500">预处理版本快照</div>
+                  <button
+                    type="button"
+                    onClick={handleRollbackSnapshot}
+                    disabled={!canRollbackSnapshot}
+                    className="text-[11px] px-2 py-0.5 rounded border border-gray-700 bg-gray-900 text-gray-300 disabled:text-gray-600 disabled:border-gray-800 disabled:cursor-not-allowed hover:bg-gray-800"
+                  >
+                    回滚到上一版本
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {draftSnapshots.map((snapshot) => (
+                    <button
+                      key={snapshot.id}
+                      type="button"
+                      onClick={() => activateSnapshot(snapshot, `已切换到 ${snapshot.label}。`)}
+                      className={`text-[11px] px-2 py-0.5 rounded border ${activeSnapshotId === snapshot.id ? 'border-blue-400 bg-blue-500/20 text-blue-300' : 'border-gray-700 bg-gray-900 text-gray-400'}`}
+                    >
+                      {snapshot.label}
+                    </button>
+                  ))}
+                </div>
+                {activeSnapshot && (
+                  <div className="text-[11px] text-gray-500">
+                    当前版本：{activeSnapshot.label} · {activeSnapshot.source === 'repair' ? '补齐稿' : '预处理稿'}
+                  </div>
+                )}
+              </div>
+            )}
 
             {(preprocessResult.coverageChecklist?.length || preprocessResult.detectedFacts?.length || preprocessResult.adjustments?.length) ? (
               <div className="bg-gray-950/80 border border-gray-800 rounded p-2 space-y-2">
@@ -351,6 +546,32 @@ export function RichTextToShots() {
                   </div>
                 )}
 
+                {missingFacts.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleRepairMissingFacts}
+                      className="text-[11px] px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25"
+                    >
+                      一键补齐缺失项（{missingFacts.length}）
+                    </button>
+                    {(isRepairSnapshotActive || repairedDraftText) && (
+                      <button
+                        type="button"
+                        onClick={handleResetRepair}
+                        className="text-[11px] px-2.5 py-1 rounded bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700"
+                      >
+                        回退补齐
+                      </button>
+                    )}
+                    {repairedFactIds.length > 0 && (
+                      <span className="text-[11px] text-amber-300">
+                        已补齐：{repairedFactIds.join('、')}
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {evidenceKeywords.length > 0 && (
                   <div className="space-y-1">
                     <div className="text-[11px] text-gray-500">证据定位词</div>
@@ -373,10 +594,7 @@ export function RichTextToShots() {
                       <li key={item.factId}>
                         <button
                           type="button"
-                          onClick={() => {
-                            setActiveCoverageFactId(item.factId);
-                            setSelectedFactId(item.factId);
-                          }}
+                          onClick={() => handleCoverageItemClick(item)}
                           className={`w-full text-left text-xs text-gray-300 flex items-start gap-2 rounded px-1.5 py-1 transition-colors ${activeCoverageFactId === item.factId ? 'bg-blue-500/10 border border-blue-500/20' : 'border border-transparent hover:bg-gray-900/70'}`}
                         >
                         <span className={`px-1.5 py-0.5 rounded text-[10px] ${item.kept ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>

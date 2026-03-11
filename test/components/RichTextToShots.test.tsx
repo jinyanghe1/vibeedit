@@ -103,6 +103,8 @@ describe('RichTextToShots Component', () => {
     expect(screen.getByText(/1\/2 已覆盖/)).toBeInTheDocument();
     expect(screen.getByText(/证据定位词/i)).toBeInTheDocument();
     expect(screen.getByText(/定位命中：原文/i)).toBeInTheDocument();
+    expect(screen.getByText(/预处理版本快照/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /预处理v1/ })).toBeInTheDocument();
     expect(screen.getAllByText(/未命中|仅原文命中|仅预处理稿命中|双端命中/).length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole('checkbox', { name: /只看缺失项/i }));
@@ -116,5 +118,63 @@ describe('RichTextToShots Component', () => {
     expect(screen.getAllByText('实施条件').length).toBeGreaterThan(0);
     expect(screen.getByText(/缺失实施条件/)).toBeInTheDocument();
     expect(screen.getByText(/聚焦覆盖项：F2/)).toBeInTheDocument();
+  });
+
+  it('repairs missing facts and uses repaired draft for generation', async () => {
+    render(<RichTextToShots />);
+
+    const textarea = screen.getByLabelText('richtext-input');
+    await userEvent.type(textarea, '原稿件');
+
+    await userEvent.click(screen.getByRole('button', { name: /预处理稿件/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().preprocessRichTextForStoryboard).toHaveBeenCalledTimes(1);
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /一键补齐缺失项/i }));
+
+    expect(screen.getByText(/已补齐 1 条缺失事实/)).toBeInTheDocument();
+    expect(screen.getByText(/已补齐：F2/)).toBeInTheDocument();
+    expect(screen.getByText(/回退补齐/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /智能生成分镜/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().generateShotsFromRichText).toHaveBeenCalledTimes(1);
+    });
+
+    const generatedText = vi.mocked(useEditorStore.getState().generateShotsFromRichText).mock.calls[0][0];
+    expect(generatedText).toContain('【补充信息】');
+    expect(generatedText).toContain('1. 实施条件');
+  });
+
+  it('supports snapshot rollback to previous preprocessed version', async () => {
+    render(<RichTextToShots />);
+
+    const textarea = screen.getByLabelText('richtext-input');
+    await userEvent.type(textarea, '原稿件');
+
+    await userEvent.click(screen.getByRole('button', { name: /预处理稿件/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().preprocessRichTextForStoryboard).toHaveBeenCalledTimes(1);
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /一键补齐缺失项/i }));
+    expect(screen.getByRole('button', { name: /补齐v1/ })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /回滚到上一版本/i }));
+
+    expect(screen.getByText(/已回滚到 预处理v1/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /智能生成分镜/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().generateShotsFromRichText).toHaveBeenCalledTimes(1);
+    });
+
+    const generatedText = vi.mocked(useEditorStore.getState().generateShotsFromRichText).mock.calls[0][0];
+    expect(generatedText).toBe('预处理后稿件');
   });
 });
