@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useEditorStore } from '../store/editorStore';
-import { ImagePlus, X, Upload, User, Edit2, Check, Film, Type, Image } from 'lucide-react';
+import { ImagePlus, X, Upload, User, Edit2, Check, Film, Type } from 'lucide-react';
 import type { AssetType, TextCard } from '../types';
 import { TextCardEditor } from './TextCardEditor';
 
