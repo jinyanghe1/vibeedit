@@ -29,6 +29,59 @@ interface DraftSnapshot {
 /** F3: 生成前质量门禁阈值（覆盖率低于此值时触发警告） */
 const COVERAGE_GATE_THRESHOLD = 0.7;
 
+function buildFactTokens(fact: string): string[] {
+  const normalizedFact = normalizeKeyword(fact);
+  if (!normalizedFact) return [];
+  const parts = normalizedFact
+    .split(/[，,。；;：:\s（）()、]/)
+    .map((item) => normalizeKeyword(item))
+    .filter((item) => item.length >= 2);
+  const ngrams: string[] = [];
+  if (parts.length === 0 && normalizedFact.length >= 4) {
+    for (let i = 0; i <= normalizedFact.length - 2; i += 1) {
+      const token = normalizedFact.slice(i, i + 2);
+      if (token.length >= 2) ngrams.push(token);
+    }
+  }
+  return Array.from(new Set([...parts, ...ngrams])).slice(0, 8);
+}
+
+function inferFactRefsFromDescription(
+  description: string,
+  detectedFacts: Array<{ id: string; fact: string }>
+): string[] {
+  const normalizedDescription = normalizeKeyword(description);
+  if (!normalizedDescription || detectedFacts.length === 0) return [];
+  const refs: string[] = [];
+  for (const fact of detectedFacts) {
+    const factId = fact.id.trim();
+    if (!factId) continue;
+    if (normalizedDescription.includes(normalizeKeyword(factId))) {
+      refs.push(factId);
+      continue;
+    }
+    const tokens = buildFactTokens(fact.fact);
+    if (tokens.some((token) => normalizedDescription.includes(token))) {
+      refs.push(factId);
+    }
+  }
+  return Array.from(new Set(refs));
+}
+
+function normalizeFactRefs(
+  refs: string[] | undefined,
+  factIdMap: Map<string, string>
+): string[] {
+  if (!Array.isArray(refs)) return [];
+  return Array.from(
+    new Set(
+      refs
+        .map((item) => factIdMap.get(item.trim().toUpperCase()) || item.trim())
+        .filter((item) => item.length > 0)
+    )
+  );
+}
+
 function HighlightedText({ text, keywords }: { text: string; keywords?: string[] }) {
   const segments = generateHighlightSegments(text, keywords || []);
   return (
@@ -132,6 +185,47 @@ export function RichTextToShots() {
     );
   }, [selectedFact?.fact, activeCoverageItem?.evidence, evidenceKeywords]);
   const coverageSummary = useMemo(() => summarizeCoverage(factFilteredCoverage), [factFilteredCoverage]);
+  const detectedFacts = useMemo(
+    () => preprocessResult?.detectedFacts || [],
+    [preprocessResult?.detectedFacts]
+  );
+  const factIdMap = useMemo(
+    () => new Map(detectedFacts.map((fact) => [fact.id.trim().toUpperCase(), fact.id])),
+    [detectedFacts]
+  );
+  const resultShotsWithFactRefs = useMemo(() => {
+    if (!result) return [];
+    return result.shots.map((shot) => {
+      const normalizedRefs = normalizeFactRefs(shot.factRefs, factIdMap);
+      if (normalizedRefs.length > 0) {
+        return { ...shot, factRefs: normalizedRefs };
+      }
+      if (detectedFacts.length === 0) {
+        return shot;
+      }
+      const inferredRefs = inferFactRefsFromDescription(shot.description, detectedFacts);
+      return inferredRefs.length > 0
+        ? { ...shot, factRefs: inferredRefs }
+        : shot;
+    });
+  }, [result, detectedFacts, factIdMap]);
+  const contractCoveredFactIds = useMemo(() => {
+    const covered = new Set<string>();
+    resultShotsWithFactRefs.forEach((shot) => {
+      (shot.factRefs || []).forEach((factId) => covered.add(factId));
+    });
+    return covered;
+  }, [resultShotsWithFactRefs]);
+  const missingContractFacts = useMemo(
+    () => detectedFacts.filter((fact) => !contractCoveredFactIds.has(fact.id)),
+    [detectedFacts, contractCoveredFactIds]
+  );
+  const contractCoverageRatio = useMemo(
+    () => (detectedFacts.length > 0
+      ? (detectedFacts.length - missingContractFacts.length) / detectedFacts.length
+      : 1),
+    [detectedFacts.length, missingContractFacts.length]
+  );
   /** F3/F4: 覆盖率风险条件（用于生成门禁与导入门禁） */
   const coverageGateRiskPresent = enableCoverageGate &&
     usePreprocessedDraft &&
@@ -142,8 +236,17 @@ export function RichTextToShots() {
     !(isRepairSnapshotActive || repairedDraftText);
   /** F3: 生成门禁 */
   const coverageGateTriggered = coverageGateRiskPresent && !allowCoverageGateBypassOnce;
-  /** F4: 导入门禁 */
-  const importGateTriggered = !!result && coverageGateRiskPresent && !allowImportGateBypassOnce;
+  /** F4: 导入门禁（覆盖率） */
+  const importCoverageGateTriggered = !!result && coverageGateRiskPresent && !allowImportGateBypassOnce;
+  /** F7: 导入门禁（事实-分镜契约） */
+  const importContractGateTriggered = !!result &&
+    usePreprocessedDraft &&
+    hasFreshPreprocess &&
+    detectedFacts.length > 0 &&
+    missingContractFacts.length > 0 &&
+    !(isRepairSnapshotActive || repairedDraftText) &&
+    !allowImportGateBypassOnce;
+  const importGateTriggered = importCoverageGateTriggered || importContractGateTriggered;
   const visibleCoverageWithMatch = useMemo(
     () =>
       visibleCoverage.map((item) => ({
@@ -352,7 +455,23 @@ export function RichTextToShots() {
       const res = await generateShotsFromRichText(markdownForGeneration, toneConfig, (msg) => {
         setProgress(msg);
       });
-      setResult(res);
+      const enhancedResult = {
+        ...res,
+        shots: res.shots.map((shot) => {
+          const normalizedRefs = normalizeFactRefs(shot.factRefs, factIdMap);
+          if (normalizedRefs.length > 0) {
+            return { ...shot, factRefs: normalizedRefs };
+          }
+          if (detectedFacts.length === 0) {
+            return shot;
+          }
+          const inferredRefs = inferFactRefsFromDescription(shot.description, detectedFacts);
+          return inferredRefs.length > 0
+            ? { ...shot, factRefs: inferredRefs }
+            : shot;
+        })
+      };
+      setResult(enhancedResult);
     } catch (err) {
       console.error('富文本生成分镜失败:', err);
       setProgress('生成失败: ' + (err instanceof Error ? err.message : '未知错误'));
@@ -402,17 +521,22 @@ export function RichTextToShots() {
   const handleImportAll = () => {
     if (!result) return;
     if (importGateTriggered) {
+      const reasons: string[] = [];
+      if (importCoverageGateTriggered) {
+        reasons.push(`覆盖率 ${Math.round(coverageSummary.keptRatio * 100)}% 低于阈值 ${Math.round(COVERAGE_GATE_THRESHOLD * 100)}%`);
+      }
+      if (importContractGateTriggered) {
+        reasons.push(`存在 ${missingContractFacts.length} 项必需事实未被分镜引用`);
+      }
       setProgress(
-        `导入门禁已触发：当前覆盖率 ${Math.round(coverageSummary.keptRatio * 100)}%，低于阈值 ${Math.round(
-          COVERAGE_GATE_THRESHOLD * 100
-        )}%。请先补齐或点击“导入全部分镜（临时忽略门禁）”。`
+        `导入门禁已触发：${reasons.join('；')}。请先补齐或点击“导入全部分镜（临时忽略门禁）”。`
       );
       return;
     }
     if (allowImportGateBypassOnce) {
       setAllowImportGateBypassOnce(false);
     }
-    addShots(result.shots);
+    addShots(resultShotsWithFactRefs);
     setResult(null);
     setProgress('✅ 已导入全部分镜');
   };
@@ -899,6 +1023,39 @@ export function RichTextToShots() {
             </p>
           )}
 
+          {usePreprocessedDraft && hasFreshPreprocess && detectedFacts.length > 0 && (
+            <div className="mx-4 mt-3 mb-1 bg-gray-950/80 border border-gray-800 rounded px-3 py-2 space-y-1.5">
+              <div className="flex items-center justify-between text-xs text-gray-300">
+                <span>事实-分镜契约</span>
+                <span>
+                  覆盖 {detectedFacts.length - missingContractFacts.length}/{detectedFacts.length}
+                </span>
+              </div>
+              <div className="w-full h-1.5 rounded-full bg-gray-900 overflow-hidden">
+                <div
+                  className={`h-full ${missingContractFacts.length > 0 ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                  style={{ width: `${Math.max(0, Math.min(100, contractCoverageRatio * 100))}%` }}
+                />
+              </div>
+              {missingContractFacts.length > 0 ? (
+                <div className="space-y-1">
+                  <div className="text-[11px] text-amber-300">
+                    未被分镜引用的必需事实（{missingContractFacts.length}）：
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {missingContractFacts.map((fact) => (
+                      <span key={fact.id} className="text-[11px] bg-amber-500/15 text-amber-300 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                        {fact.id} · {fact.fact}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-[11px] text-emerald-300">所有必需事实均已被分镜引用。</div>
+              )}
+            </div>
+          )}
+
           {importGateTriggered && (
             <div
               role="alert"
@@ -907,14 +1064,20 @@ export function RichTextToShots() {
             >
               <div className="text-xs text-amber-300 font-medium flex items-center gap-1.5">
                 <span>⚠️</span>
-                <span>导入门禁：当前覆盖率 {Math.round(coverageSummary.keptRatio * 100)}%，低于阈值 {Math.round(COVERAGE_GATE_THRESHOLD * 100)}%</span>
+                <span>导入门禁：存在高风险导入条件，已阻断导入。</span>
               </div>
-              {/* F5: 缺失事实清单 */}
-              {missingFacts.length > 0 && (
+              {importCoverageGateTriggered && (
                 <div className="space-y-1">
-                  <div className="text-[11px] text-amber-400/80">以下事实点将不体现在导入的分镜中：</div>
+                  <div className="text-[11px] text-amber-400/80">
+                    覆盖率告警：当前覆盖率 {Math.round(coverageSummary.keptRatio * 100)}%，低于阈值 {Math.round(COVERAGE_GATE_THRESHOLD * 100)}%。
+                  </div>
+                </div>
+              )}
+              {importContractGateTriggered && (
+                <div className="space-y-1">
+                  <div className="text-[11px] text-amber-400/80">契约告警：以下必需事实尚未被任何分镜引用：</div>
                   <ul className="space-y-0.5">
-                    {missingFacts.map((mf) => (
+                    {missingContractFacts.map((mf) => (
                       <li key={mf.id} className="flex items-start gap-1.5 text-[11px] text-amber-400/90">
                         <span className="shrink-0 font-mono bg-amber-500/15 px-1 rounded text-amber-400">{mf.id}</span>
                         <span>{mf.fact}</span>
@@ -945,7 +1108,7 @@ export function RichTextToShots() {
           )}
 
           <div className="divide-y divide-gray-800 max-h-[300px] overflow-y-auto">
-            {result.shots.map((shot, idx) => (
+            {resultShotsWithFactRefs.map((shot, idx) => (
               <div key={idx} className="px-4 py-3">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-mono text-purple-400 bg-purple-500/20 px-1.5 py-0.5 rounded">
@@ -955,6 +1118,19 @@ export function RichTextToShots() {
                   {shot.assetRefs.length > 0 && (
                     <span className="text-xs text-blue-400">
                       {shot.assetRefs.map(r => `@${r}`).join(' ')}
+                    </span>
+                  )}
+                </div>
+                <div className="mb-1 flex flex-wrap gap-1.5">
+                  {shot.factRefs && shot.factRefs.length > 0 ? (
+                    shot.factRefs.map((factId) => (
+                      <span key={`${idx}-${factId}`} className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/25">
+                        {factId}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-900 text-gray-500 border border-gray-800">
+                      未标注事实引用
                     </span>
                   )}
                 </div>

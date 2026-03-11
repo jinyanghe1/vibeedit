@@ -171,6 +171,7 @@ ${toneSegment}
 1. description: 分镜描述（简洁明了，适合视频生成，必须体现上述调性风格特征）
 2. duration: 预估时长（秒），3-15秒之间
 3. assetRefs: 引用的角色/资产名称列表（使用@名称格式）
+4. factRefs: 该分镜覆盖到的事实点 ID 列表（如 ["F1","F3"]，未知可返回 []）
 
 要求：
 - 描述应具体，包含场景、动作、镜头语言
@@ -184,7 +185,8 @@ ${toneSegment}
     {
       "description": "分镜描述...",
       "duration": 5,
-      "assetRefs": []
+      "assetRefs": [],
+      "factRefs": []
     }
   ],
   "summary": "内容概要"
@@ -236,6 +238,7 @@ ${script}
 1. description: 分镜描述（简洁明了，适合视频生成）
 2. duration: 预估时长（秒），3-15秒之间
 3. assetRefs: 引用的角色/资产名称列表（使用@名称格式）
+4. factRefs: 该分镜覆盖到的事实点 ID 列表（如 ["F1","F3"]，未知可返回 []）
 
 要求：
 - 描述应该具体，包含场景、动作、镜头语言
@@ -248,7 +251,8 @@ ${script}
     {
       "description": "@小红走在街上，看到一只猫跑过来",
       "duration": 5,
-      "assetRefs": ["小红"]
+      "assetRefs": ["小红"],
+      "factRefs": ["F1"]
     }
   ],
   "summary": "剧本概要"

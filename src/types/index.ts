@@ -206,6 +206,7 @@ export interface ScriptShotData {
   description: string;
   duration: number;
   assetRefs: string[];
+  factRefs?: string[];
 }
 
 // 剧本生成结果

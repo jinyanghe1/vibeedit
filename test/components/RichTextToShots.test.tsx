@@ -345,4 +345,59 @@ describe('RichTextToShots Component', () => {
     await userEvent.click(screen.getByRole('button', { name: /^导入全部分镜$/ }));
     expect(useEditorStore.getState().addShots).toHaveBeenCalledTimes(1);
   });
+
+  it('allows direct import when all required facts are referenced by shots', async () => {
+    useEditorStore.setState({
+      preprocessRichTextForStoryboard: vi.fn().mockResolvedValue({
+        preprocessedText: '预处理后稿件',
+        summary: '收敛完成',
+        detectedFacts: [
+          { id: 'F1', fact: '背景信息' },
+          { id: 'F2', fact: '实施条件' }
+        ],
+        coverageChecklist: [
+          { factId: 'F1', kept: true, evidence: '保留背景信息' },
+          { factId: 'F2', kept: true, evidence: '保留实施条件' }
+        ],
+        metadata: {
+          originalLength: 100,
+          processedLength: 100,
+          lengthRatio: 1,
+          detectedGenre: 'analysis',
+          rounds: 2,
+          infoChecklistCount: 2
+        }
+      }),
+      generateShotsFromRichText: vi.fn().mockResolvedValue({
+        shots: [
+          { description: '镜头一：背景与问题铺垫', duration: 6, assetRefs: ['小红'], factRefs: ['F1', 'F2'] }
+        ],
+        summary: '共 1 个分镜（契约通过）'
+      })
+    } as any);
+
+    render(<RichTextToShots />);
+
+    const textarea = screen.getByLabelText('richtext-input');
+    await userEvent.type(textarea, '原稿件');
+    await userEvent.click(screen.getByRole('button', { name: /预处理稿件/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().preprocessRichTextForStoryboard).toHaveBeenCalledTimes(1);
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /智能生成分镜/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().generateShotsFromRichText).toHaveBeenCalledTimes(1);
+    });
+
+    expect(screen.getByText(/事实-分镜契约/)).toBeInTheDocument();
+    expect(screen.getByText(/覆盖 2\/2/)).toBeInTheDocument();
+    expect(screen.getByText(/所有必需事实均已被分镜引用/)).toBeInTheDocument();
+    expect(screen.queryByRole('alert', { name: /导入门禁警告/i })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /^导入全部分镜$/ }));
+    expect(useEditorStore.getState().addShots).toHaveBeenCalledTimes(1);
+  });
 });

@@ -2651,3 +2651,166 @@ Date: 2026-03-01
   - F7 事实-分镜契约导入（Traceable Import Contract）。
 - Risks/Notes:
   - 本轮严格遵循压强原则，仅交付 F6。
+
+### [2026-03-12 10:45:00] agent-01-round-8-release-complete
+- Agent: Agent 01 (Release)
+- Task: F6 最终发布与清理
+- Changes:
+  - ✅ 提交：`6a92585 chore: cleanup unused imports and variables`
+  - ✅ 推送：main 分支已同步
+  - 包含内容：
+    - 未使用变量清理（AssetManager, ShotEditor）
+    - `writerAuditorEngine.ts` 正式纳入版本控制
+- F6 功能摘要（已完成）：
+  - Writer + Auditor 多轮闭环（最多 3 轮）
+  - 达标阈值：lengthRatio ∈ [0.90, 1.10]、coverage >= 95%、shotAnchors >= 3
+  - 提前收敛：达标时立即停止
+  - 未收敛决策：usable / unusable
+  - 结构化 qualityReport 输出
+  - UI 质检报告展示
+- Validation:
+  - 全量测试：26 files, 154 tests passed
+  - 构建成功
+- Status: ✅ F6 发布完成
+- Next Backlog: F7 事实-分镜契约导入（等待用户指令）
+
+### [2026-03-12 10:50:00] multi-agent-round-9-start-f7
+- Request/Goal:
+  - 用户确认执行 F7（事实-分镜契约导入），继续推进。
+- Focus Rule:
+  - 单核心压强：本轮只做 F7，不并行其他功能。
+- Minimal Scope:
+  - 生成阶段：每个分镜返回 `factRefs: string[]`（引用事实 ID）
+  - 契约面板：展示已覆盖事实数 / 未覆盖事实数 / 未覆盖事实清单
+  - 导入门禁升级：
+    - 若存在必需事实未被任何分镜引用，阻断导入
+    - 提供一次性放行 + 风险确认文案
+- Non-goals:
+  - 不做镜头级自动重写
+  - 不做外部知识库对账
+  - 不做人工审批流
+- Agent Split:
+  - Agent 01：结果结构扩展与契约判定逻辑
+  - Agent 02：契约面板 UI + 分镜标签渲染
+  - Agent 03：测试用例与回归验收
+- Acceptance SOP:
+  - 1) 生成结果中每条分镜可见事实引用标签
+  - 2) 存在未覆盖必需事实时，导入被阻断并展示缺口
+  - 3) 点击临时放行后可导入一次，后续自动失效
+  - 4) 关闭预处理或无事实清单时，不触发契约门禁
+
+### [2026-03-12 10:52:00] agent-01-round-9-start
+- Agent: Agent 01 (Logic)
+- Task: F7 - 事实-分镜契约导入
+- Changes:
+  - 实施计划：
+    1. 扩展类型定义：
+       - `ScriptShotData` 添加 `factRefs?: string[]`
+       - `ScriptGenerationResult` 添加 `factCoverage?: {...}`
+    2. 实现契约判定逻辑：
+       - `computeFactCoverage` - 计算事实覆盖情况
+       - `checkImportContract` - 检查导入契约是否满足
+       - `getUncoveredFacts` - 获取未覆盖的事实清单
+    3. 集成到生成流程：
+       - 在 LLM prompt 中要求返回 factRefs
+       - 解析并存储 factRefs 到结果中
+- Implementation Strategy:
+  - 后向兼容：factRefs 为可选字段，旧数据无该字段时显示"未标注"
+  - 契约门禁仅在启用预处理且存在事实清单时生效
+
+### [2026-03-12 10:58:00] multi-agent-round-9-start-f7-only
+- Request/Goal:
+  - 用户要求继续推进；进入 F7：事实-分镜契约导入（Traceable Import Contract）。
+- Focus Rule:
+  - 单核心压强：本轮仅做 F7，不并行新能力。
+- Minimal Scope:
+  - `ScriptShotData` 支持可选 `factRefs`。
+  - 导入前展示契约面板（事实覆盖数、缺失事实清单）。
+  - 导入门禁升级：覆盖率门禁 + 契约门禁双条件阻断，保留一次性放行。
+  - 兼容旧结果：无 `factRefs` 时显示“未标注事实引用”，并做本地推断。
+- Agent Split:
+  - Agent 01：类型/解析/门禁逻辑。
+  - Agent 02：契约面板与分镜 factRefs UI。
+  - Agent 03：测试补齐 + 回归验收。
+- Acceptance SOP:
+  - 1) 每个分镜可显示 `factRefs`，无标注时有降级提示。
+  - 2) 存在未被分镜引用的必需事实时导入被阻断。
+  - 3) 临时放行后可导入一次，随后自动失效。
+  - 4) 全量回归和构建通过。
+- Risks/Notes:
+  - 契约门禁仅在启用预处理且有事实清单时生效。
+
+### [2026-03-12 11:02:40] agent-01-round-9-complete
+- Agent: Agent 01 (Logic)
+- Request/Goal:
+  - 实现 F7 类型与导入契约判定逻辑。
+- Changes:
+  - `src/types/index.ts`
+    - `ScriptShotData` 新增可选字段 `factRefs?: string[]`。
+  - `src/utils/llmParser.ts`
+    - `parseShotsFromLLMResponse` 支持解析 `factRefs`。
+    - 保持向后兼容：未提供 `factRefs` 不强制注入字段。
+  - `src/services/llmService.ts` / `src/services/bytedanceService.ts`
+    - 生成 prompt 增加 `factRefs` 输出约束。
+  - `src/components/RichTextToShots.tsx`
+    - 新增本地 `factRefs` 推断与归一化逻辑。
+    - 新增契约覆盖统计：`missingContractFacts` / `contractCoverageRatio`。
+    - 导入门禁升级为双条件：覆盖率门禁 + 契约门禁。
+- Implemented:
+  - 导入动作按“事实引用完整性”进行阻断。
+- Validation:
+  - 由 Agent 03 执行组件/解析/服务回归。
+- Risks/Notes:
+  - 本地推断使用关键词匹配，仅作兼容兜底。
+
+### [2026-03-12 11:04:20] agent-02-round-9-complete
+- Agent: Agent 02 (UI)
+- Request/Goal:
+  - 完成 F7 契约可视化和交互。
+- Changes:
+  - `src/components/RichTextToShots.tsx`
+    - 新增“事实-分镜契约”面板：覆盖进度、缺失事实标签。
+    - 导入警示区新增契约告警文案与缺失事实清单。
+    - 分镜列表新增事实引用标签，缺失时显示“未标注事实引用”。
+- Implemented:
+  - 用户可在导入前直观看到分镜事实映射完整性。
+- Validation:
+  - 由 Agent 03 在组件测试新增断言并回归。
+- Risks/Notes:
+  - 保持现有导入临时放行按钮与流程不变。
+
+### [2026-03-12 11:07:10] agent-03-round-9-review-and-qa
+- Agent: Agent 03 (Code Review + Test Cases)
+- Review Findings:
+  - F7 达成“契约可见 + 门禁可控 + 向后兼容”目标。
+  - 旧结果无 `factRefs` 场景已通过“未标注 + 推断”兼容路径。
+- Test Cases Added/Updated:
+  - `test/utils/llmParser.test.ts`
+    - 新增 `parseShotsFromLLMResponse keeps factRefs when provided`。
+  - `test/components/RichTextToShots.test.tsx`
+    - 新增 `allows direct import when all required facts are referenced by shots`。
+    - 覆盖契约通过场景下的直接导入。
+- Validation:
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/components/RichTextToShots.test.tsx test/utils/llmParser.test.ts test/services/llmService.test.ts test/services/bytedanceService.test.ts`
+    - 4 files, 30 tests, 全部通过。
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run`
+    - 26 files, 156 tests, 全部通过。
+  - `npm run build`
+    - 构建通过（仅 chunk size warning）。
+- Risks/Notes:
+  - fallback stderr 为既有预期日志，不影响结果。
+
+### [2026-03-12 11:08:00] multi-agent-round-9-acceptance-f7
+- Request/Goal:
+  - F7（事实-分镜契约导入）最终验收。
+- SOP Result:
+  - Step1 分镜可见 factRefs（无标注有降级提示）：通过。
+  - Step2 存在未引用必需事实时导入被阻断：通过。
+  - Step3 临时放行后可导入一次并自动失效：通过。
+  - Step4 全量回归 + 构建：通过。
+- Delivery:
+  - ✅ F7 最小可用版本完成。
+- Next Backlog (not started):
+  - F8 候选：导入后契约回执（保存导入时 fact coverage 快照用于回溯）。
+- Risks/Notes:
+  - 契约完整性仍依赖模型输出与关键词推断质量，后续可引入结构化强约束提示词。

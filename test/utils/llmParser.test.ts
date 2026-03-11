@@ -33,6 +33,19 @@ describe('llmParser utils', () => {
     });
   });
 
+  it('parseShotsFromLLMResponse keeps factRefs when provided', () => {
+    const result = parseShotsFromLLMResponse(
+      '```json\n{"shots":[{"description":"A","duration":6,"assetRefs":[],"factRefs":["F1"," F2 "]}]}\n```'
+    );
+
+    expect(result).toEqual({
+      shots: [
+        { description: 'A', duration: 6, assetRefs: [], factRefs: ['F1', 'F2'] }
+      ],
+      summary: '成功生成 1 个分镜'
+    });
+  });
+
   it('parseShotsFromLLMResponse returns null when payload has no shots array', () => {
     expect(parseShotsFromLLMResponse('{\"summary\":\"x\"}')).toBeNull();
     expect(parseShotsFromLLMResponse('not-json')).toBeNull();

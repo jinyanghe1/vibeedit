@@ -50,12 +50,12 @@ export function safeJsonParse<T>(jsonString: string): T | null {
  * @returns 解析结果对象
  */
 export function parseShotsFromLLMResponse(response: string): { 
-  shots: Array<{ description: string; duration: number; assetRefs: string[] }>;
+  shots: Array<{ description: string; duration: number; assetRefs: string[]; factRefs?: string[] }>;
   summary?: string;
 } | null {
   const jsonStr = extractJsonFromResponse(response);
   const data = safeJsonParse<{
-    shots?: Array<{ description?: string; duration?: number; assetRefs?: string[] }>;
+    shots?: Array<{ description?: string; duration?: number; assetRefs?: string[]; factRefs?: string[] }>;
     summary?: string;
   }>(jsonStr);
   
@@ -63,11 +63,19 @@ export function parseShotsFromLLMResponse(response: string): {
     return null;
   }
   
-  const validShots = data.shots.map((shot, index) => ({
-    description: String(shot.description || `分镜 ${index + 1}`),
-    duration: Math.min(Math.max(Number(shot.duration) || 5, 1), 30),
-    assetRefs: Array.isArray(shot.assetRefs) ? shot.assetRefs : []
-  }));
+  const validShots = data.shots.map((shot, index) => {
+    const factRefs = Array.isArray(shot.factRefs)
+      ? shot.factRefs
+          .map((item) => String(item).trim())
+          .filter((item) => item.length > 0)
+      : undefined;
+    return {
+      description: String(shot.description || `分镜 ${index + 1}`),
+      duration: Math.min(Math.max(Number(shot.duration) || 5, 1), 30),
+      assetRefs: Array.isArray(shot.assetRefs) ? shot.assetRefs : [],
+      ...(factRefs ? { factRefs } : {})
+    };
+  });
   
   return {
     shots: validShots,
@@ -81,12 +89,12 @@ export function parseShotsFromLLMResponse(response: string): {
  * @returns 解析结果
  */
 export function fallbackParseShots(response: string): { 
-  shots: Array<{ description: string; duration: number; assetRefs: string[] }>;
+  shots: Array<{ description: string; duration: number; assetRefs: string[]; factRefs?: string[] }>;
   summary: string;
 } {
-  const shots: Array<{ description: string; duration: number; assetRefs: string[] }> = [];
+  const shots: Array<{ description: string; duration: number; assetRefs: string[]; factRefs?: string[] }> = [];
   const lines = response.split('\n');
-  let currentShot: { description: string; duration: number; assetRefs: string[] } | null = null;
+  let currentShot: { description: string; duration: number; assetRefs: string[]; factRefs?: string[] } | null = null;
   
   for (const line of lines) {
     const trimmed = line.trim();
