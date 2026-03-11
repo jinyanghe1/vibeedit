@@ -99,18 +99,23 @@ describe('RichTextToShots Component', () => {
     expect(screen.getByRole('button', { name: 'F1' })).toBeInTheDocument();
     expect(screen.getByText(/补回 F2 信息/)).toBeInTheDocument();
     expect(screen.getByText(/第1段保留背景信息/)).toBeInTheDocument();
+    expect(screen.getByText(/覆盖率汇总/)).toBeInTheDocument();
+    expect(screen.getByText(/1\/2 已覆盖/)).toBeInTheDocument();
     expect(screen.getByText(/证据定位词/i)).toBeInTheDocument();
     expect(screen.getByText(/定位命中：原文/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/原文未命中|原文命中/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/预处理稿未命中|预处理稿命中/).length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByRole('checkbox', { name: /只看缺失项/i }));
 
     expect(screen.queryByText(/第1段保留背景信息/)).not.toBeInTheDocument();
     expect(screen.getByText(/缺失实施条件/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'F2' }));
+    await userEvent.click(screen.getByRole('button', { name: /F2 缺失/ }));
 
     expect(screen.getByText(/当前事实点：/)).toBeInTheDocument();
     expect(screen.getAllByText('实施条件').length).toBeGreaterThan(0);
     expect(screen.getByText(/缺失实施条件/)).toBeInTheDocument();
+    expect(screen.getByText(/当前聚焦/)).toBeInTheDocument();
   });
 });

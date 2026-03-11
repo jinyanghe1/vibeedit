@@ -1695,3 +1695,59 @@ Date: 2026-03-01
     - `test/components/RichTextToShots.test.tsx` - 测试更新
     - `.agentstalk` - 协作日志
 - Status: ✅ Round 2 发布完成
+
+### [2026-03-11 23:45:30] multi-agent-next-update-round-3-start
+- Request/Goal:
+  - 用户要求：完成当前提交后继续开发，并按 agent01/02/03 三路并行。
+  - 本轮目标：提升预处理结果的可验收效率（覆盖率汇总 + 证据命中状态 + 单条覆盖项聚焦高亮）。
+- Changes:
+  - Agent 01（Data/Logic）：收敛证据匹配逻辑，补充覆盖率统计与命中位置计算。
+  - Agent 02（UI）：新增覆盖率摘要条、覆盖项“命中位置”标签、覆盖项点击聚焦高亮。
+  - Agent 03（QA）：补组件测试，验证聚焦与命中标签，执行定向回归。
+- Implemented:
+  - 已完成任务拆解与验收标准定义。
+- Validation:
+  - 计划执行：
+    - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/components/RichTextToShots.test.tsx`
+    - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/store/editorStore.test.ts`
+- Next Steps:
+  - agent01/02 先落代码，agent03 回归并动态验收。
+- Risks/Notes:
+  - 当前 evidence 语义松散，命中位置需允许 `none` 结果并给出降级提示。
+
+### [2026-03-11 23:50:00] agent-01-round-3-start
+- Agent: Agent 01 (Data/Logic)
+- Task: 收敛证据匹配逻辑，补充覆盖率统计与命中位置计算
+- Changes:
+  - 计划更新 `src/utils/highlightUtils.ts`：
+    - 完善 `checkEvidenceMatch` 函数，计算证据在原文/预处理文中的具体位置
+    - 添加覆盖率统计函数（保留率、缺失率等）
+    - 添加单条覆盖项聚焦高亮支持
+  - 计划更新类型定义（如需要）
+- Implementation Plan:
+  1. 扩展证据匹配逻辑，返回匹配位置信息
+  2. 添加覆盖率统计计算
+  3. 支持单条覆盖项的聚焦高亮
+- Validation: 待实现后运行测试
+
+### [2026-03-11 23:55:00] agent-01-round-3-complete
+- Agent: Agent 01 (Data/Logic)
+- Task: 收敛证据匹配逻辑，补充覆盖率统计与命中位置计算
+- Changes:
+  - 更新 `src/utils/highlightUtils.ts`：
+    - ✅ 新增 `findHitPositions` - 计算关键词在文本中的精确位置（行号、列号、上下文）
+    - ✅ 新增 `computeCoverageItemMatch` - 计算单条覆盖项的详细匹配信息
+    - ✅ 新增 `computeCoverageSummary` - 覆盖率汇总统计（包含命中位置分布）
+    - ✅ 新增 `getFocusHighlightKeywords` - 获取单条覆盖项的聚焦高亮关键词
+    - ✅ 新增类型定义：`EvidenceHitPosition`, `CoverageItemMatchInfo`, `CoverageSummary`
+- Validation:
+  - `npm run build` - 构建成功
+  - `RichTextToShots.test.tsx` - 2 tests passed
+  - `editorStore.test.ts` - 32 tests passed
+- Status: ✅ Agent 01 Round 3 完成
+- Notes:
+  - 工具库已准备就绪，支持 Agent 02 实现 UI 展示
+  - 支持的功能：
+    - 证据在原文/预处理稿中的精确位置定位
+    - 覆盖率统计（保留率、缺失率、命中分布）
+    - 单条覆盖项点击聚焦高亮

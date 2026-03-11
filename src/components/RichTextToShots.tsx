@@ -3,6 +3,14 @@ import { useMemo, useState } from 'react';
 import type { Descendant } from 'slate';
 import { useEditorStore } from '../store/editorStore';
 import type { RichTextPreprocessResult, ScriptGenerationResult, ToneConfig } from '../types';
+import {
+  checkEvidenceMatch,
+  extractEvidenceKeywordsFromCoverage,
+  generateHighlightSegments,
+  getEvidenceLocationLabel,
+  normalizeKeyword,
+  summarizeCoverage
+} from '../utils/highlightUtils';
 import { serializeToMarkdown, serializeToPlainText } from '../utils/slateSerializer';
 import { RichTextEditor, createInitialValue } from './RichTextEditor';
 import { ToneSelector } from './ToneSelector';
@@ -13,77 +21,17 @@ interface CoverageViewItem {
   evidence?: string;
 }
 
-const EVIDENCE_STOPWORDS = new Set([
-  '第1段',
-  '第2段',
-  '第3段',
-  '第4段',
-  '第5段',
-  '保留',
-  '缺失',
-  '补回',
-  '补充',
-  '信息',
-  '说明',
-  '体现',
-  '内容'
-]);
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function normalizeKeyword(value: string): string {
-  return value
-    .trim()
-    .replace(/^第\d+段/, '')
-    .replace(/^(保留|缺失|补回|补充|体现|提及|说明)/, '')
-    .replace(/(保留|缺失|补回|补充|体现|提及|说明)$/g, '')
-    .trim();
-}
-
-function extractEvidenceKeywords(items: CoverageViewItem[]): string[] {
-  const keywords = new Set<string>();
-
-  for (const item of items) {
-    if (!item.evidence) continue;
-    const tokens = item.evidence.match(/[\u4e00-\u9fa5A-Za-z0-9]{2,}/g) || [];
-    for (const rawToken of tokens) {
-      const token = normalizeKeyword(rawToken);
-      if (token.length < 2 || EVIDENCE_STOPWORDS.has(token)) continue;
-      keywords.add(token);
-      if (keywords.size >= 8) break;
-    }
-    if (keywords.size >= 8) break;
-  }
-
-  return Array.from(keywords);
-}
-
-function textContainsKeyword(text: string, keyword: string): boolean {
-  return text.toLowerCase().includes(keyword.toLowerCase());
-}
-
 function HighlightedText({ text, keywords }: { text: string; keywords?: string[] }) {
-  const activeKeywords = Array.from(
-    new Set((keywords || []).map(normalizeKeyword).filter((item) => item.length >= 2))
-  ).sort((a, b) => b.length - a.length);
-
-  if (activeKeywords.length === 0) {
-    return <span>{text}</span>;
-  }
-
-  const pattern = activeKeywords.map((item) => escapeRegExp(item)).join('|');
-  const parts = text.split(new RegExp(`(${pattern})`, 'gi'));
+  const segments = generateHighlightSegments(text, keywords || []);
   return (
     <>
-      {parts.map((part, index) =>
-        activeKeywords.some((keyword) => keyword.toLowerCase() === part.toLowerCase()) ? (
-          <mark key={`${part}-${index}`} className="bg-yellow-500/30 text-yellow-100 rounded px-0.5">
-            {part}
+      {segments.map((segment, index) =>
+        segment.isHighlight ? (
+          <mark key={`${segment.text}-${index}`} className="bg-yellow-500/30 text-yellow-100 rounded px-0.5">
+            {segment.text}
           </mark>
         ) : (
-          <span key={`${part}-${index}`}>{part}</span>
+          <span key={`${segment.text}-${index}`}>{segment.text}</span>
         )
       )}
     </>
@@ -109,6 +57,7 @@ export function RichTextToShots() {
   const [showToneSelector, setShowToneSelector] = useState(true);
   const [selectedFactId, setSelectedFactId] = useState<string>('all');
   const [onlyMissingCoverage, setOnlyMissingCoverage] = useState(false);
+  const [activeCoverageFactId, setActiveCoverageFactId] = useState<string | null>(null);
 
   const { generateShotsFromRichText, preprocessRichTextForStoryboard, addShots, hasLLMConfig } = useEditorStore();
 
@@ -130,13 +79,18 @@ export function RichTextToShots() {
     () => (onlyMissingCoverage ? factFilteredCoverage.filter((item) => !item.kept) : factFilteredCoverage),
     [factFilteredCoverage, onlyMissingCoverage]
   );
+  const activeCoverageItem = useMemo(
+    () => visibleCoverage.find((item) => item.factId === activeCoverageFactId),
+    [activeCoverageFactId, visibleCoverage]
+  );
   const evidenceKeywords = useMemo(() => extractEvidenceKeywords(visibleCoverage).slice(0, 6), [visibleCoverage]);
   const highlightKeywords = useMemo(() => {
-    const mergedKeywords = [selectedFact?.fact || '', ...evidenceKeywords];
+    const mergedKeywords = [selectedFact?.fact || '', activeCoverageItem?.evidence || '', ...evidenceKeywords];
     return Array.from(
       new Set(mergedKeywords.map(normalizeKeyword).filter((item) => item.length >= 2))
     );
-  }, [selectedFact?.fact, evidenceKeywords]);
+  }, [selectedFact?.fact, activeCoverageItem?.evidence, evidenceKeywords]);
+  const coverageSummary = useMemo(() => summarizeCoverage(visibleCoverage), [visibleCoverage]);
   const sourceEvidenceHits = useMemo(
     () => evidenceKeywords.filter((keyword) => textContainsKeyword(preprocessSourceMarkdown, keyword)).length,
     [evidenceKeywords, preprocessSourceMarkdown]
@@ -155,6 +109,7 @@ export function RichTextToShots() {
       setPreprocessResult(preprocessed);
       setSelectedFactId('all');
       setOnlyMissingCoverage(false);
+      setActiveCoverageFactId(null);
       setPreprocessSourceMarkdown(markdown);
       return preprocessed;
     } finally {
@@ -337,11 +292,32 @@ export function RichTextToShots() {
                   <input
                     type="checkbox"
                     checked={onlyMissingCoverage}
-                    onChange={(e) => setOnlyMissingCoverage(e.target.checked)}
+                    onChange={(e) => {
+                      setOnlyMissingCoverage(e.target.checked);
+                      setActiveCoverageFactId(null);
+                    }}
                     className="rounded border-gray-700 bg-gray-900 text-red-500 focus:ring-red-500"
                   />
                   只看缺失项
                 </label>
+
+                {coverageSummary.total > 0 && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[11px] text-gray-500">
+                      <span>覆盖率汇总</span>
+                      <span>{coverageSummary.keptCount}/{coverageSummary.total} 已覆盖</span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-gray-900 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-green-500 to-emerald-400"
+                        style={{ width: `${Math.max(0, Math.min(100, coverageSummary.keptRatio * 100))}%` }}
+                      />
+                    </div>
+                    <div className="text-[11px] text-gray-500">
+                      缺失 {coverageSummary.missingCount} 项
+                    </div>
+                  </div>
+                )}
 
                 {evidenceKeywords.length > 0 && (
                   <div className="space-y-1">
@@ -362,12 +338,36 @@ export function RichTextToShots() {
                 {visibleCoverage.length > 0 && (
                   <ul className="space-y-1">
                     {visibleCoverage.map((item) => (
-                      <li key={item.factId} className="text-xs text-gray-300 flex items-start gap-2">
+                      <li key={item.factId}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActiveCoverageFactId(item.factId);
+                            setSelectedFactId(item.factId);
+                          }}
+                          className={`w-full text-left text-xs text-gray-300 flex items-start gap-2 rounded px-1.5 py-1 transition-colors ${activeCoverageFactId === item.factId ? 'bg-blue-500/10 border border-blue-500/20' : 'border border-transparent hover:bg-gray-900/70'}`}
+                        >
                         <span className={`px-1.5 py-0.5 rounded text-[10px] ${item.kept ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
                           {item.kept ? '保留' : '缺失'}
                         </span>
                         <span className="text-gray-400 min-w-[42px]">{item.factId}</span>
-                        <span className="text-gray-300">{item.evidence || '未提供证据说明'}</span>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="text-gray-300">{item.evidence || '未提供证据说明'}</div>
+                          <div className="flex flex-wrap gap-1.5">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${textContainsKeyword(preprocessSourceMarkdown, item.evidence || '') ? 'bg-purple-500/20 text-purple-300' : 'bg-gray-800 text-gray-500'}`}>
+                              原文{ textContainsKeyword(preprocessSourceMarkdown, item.evidence || '') ? '命中' : '未命中' }
+                            </span>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${textContainsKeyword(preprocessResult.preprocessedText, item.evidence || '') ? 'bg-cyan-500/20 text-cyan-300' : 'bg-gray-800 text-gray-500'}`}>
+                              预处理稿{ textContainsKeyword(preprocessResult.preprocessedText, item.evidence || '') ? '命中' : '未命中' }
+                            </span>
+                            {activeCoverageFactId === item.factId && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">
+                                当前聚焦
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        </button>
                       </li>
                     ))}
                   </ul>
