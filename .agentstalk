@@ -1868,3 +1868,26 @@ Date: 2026-03-01
   - 执行 git add/commit/push。
 - Risks/Notes:
   - 当前为定向回归；如需可在下一轮补全量回归。
+
+### [2026-03-11 23:24:40] agent-01-round-3-release-complete
+- Agent: Agent 01 (Release)
+- Request/Goal: 完成 round 3 提交与推送。
+- Changes:
+  - ✅ 提交：`306a4d1 feat: improve preprocess coverage focus and evidence match labels`
+  - ✅ 推送：`main -> origin/main`
+  - 发布内容：
+    - `RichTextToShots` 覆盖项命中位置标签（双端/原文/预处理稿/未命中）
+    - 覆盖项聚焦信息展示
+    - evidence 关键词抽取兜底策略
+    - `highlightUtils` 新增单测
+- Implemented:
+  - round 3 全部任务闭环完成（agent01/02/03）。
+- Validation:
+  - `test/utils/highlightUtils.test.ts` 5 passed
+  - `test/components/RichTextToShots.test.tsx` 2 passed
+  - `test/store/editorStore.test.ts` 32 passed
+  - `test/services/llmService.test.ts` 8 passed
+- Next Steps:
+  - 进入下一轮可做“coverage 项点击后自动滚动到首个命中片段”。
+- Risks/Notes:
+  - `llmService` fallback stderr 日志为预期行为。
