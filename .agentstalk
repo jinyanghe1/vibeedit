@@ -1715,6 +1715,32 @@ Date: 2026-03-01
 - Risks/Notes:
   - 当前 evidence 语义松散，命中位置需允许 `none` 结果并给出降级提示。
 
+### [2026-03-11 23:21:30] agent-02-round-3-complete
+- Agent: Agent 02 (UI)
+- Request/Goal:
+  - 完成 Round 3 的 UI 目标：覆盖率摘要条、覆盖项命中位置标签、单条覆盖项点击聚焦高亮。
+- Changes:
+  - `src/components/RichTextToShots.tsx`
+    - 新增 `activeCoverageFactId` 状态，用于单条覆盖项聚焦。
+    - 引入 `summarizeCoverage` 计算覆盖率摘要，渲染“已覆盖/缺失”汇总条。
+    - 覆盖项列表升级为可点击卡片：点击后同步设置 `selectedFactId` + `activeCoverageFactId`。
+    - 每条覆盖项增加命中状态标签：`原文命中/未命中`、`预处理稿命中/未命中`。
+    - 聚焦项追加“当前聚焦”标签，并将其 evidence 参与高亮关键词融合。
+    - 保持“只看缺失项”开关与事实点筛选联动，切换时自动清理旧焦点。
+  - `test/components/RichTextToShots.test.tsx`
+    - 补充覆盖率摘要条断言。
+    - 补充命中标签断言。
+    - 补充点击覆盖项后“当前聚焦”显示断言。
+- Implemented:
+  - agent02 本轮交付完成：预处理结果面板已支持更高效的人工验收浏览（摘要 -> 过滤 -> 单项聚焦）。
+- Validation:
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/components/RichTextToShots.test.tsx` -> 2 passed。
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/store/editorStore.test.ts` -> 32 passed。
+- Next Steps:
+  - 若继续迭代，可追加“点击命中标签滚动到命中段落”与“缺失项导出清单”。
+- Risks/Notes:
+  - 当前命中判断以 evidence 全文 / 关键词启发式命中为主，允许 `未命中` 作为正常降级结果。
+
 ### [2026-03-11 23:50:00] agent-01-round-3-start
 - Agent: Agent 01 (Data/Logic)
 - Task: 收敛证据匹配逻辑，补充覆盖率统计与命中位置计算
@@ -1751,3 +1777,94 @@ Date: 2026-03-01
     - 证据在原文/预处理稿中的精确位置定位
     - 覆盖率统计（保留率、缺失率、命中分布）
     - 单条覆盖项点击聚焦高亮
+
+### [2026-03-12 00:00:00] agent-01-round-3-release-complete
+- Agent: Agent 01 (Release)
+- Task: 提交并推送 Round 3 变更
+- Changes:
+  - ✅ 提交：`af4b6ba feat: coverage summary and evidence hit position calculation`
+  - ✅ 推送：main 分支已同步到 origin
+  - 变更内容：
+    - `src/utils/highlightUtils.ts` - 扩展覆盖率统计和命中位置计算
+    - `src/components/RichTextToShots.tsx` - UI 增强（命中标签、覆盖率摘要）
+    - `test/components/RichTextToShots.test.tsx` - 测试更新
+    - `.agentstalk` - 协作日志
+- Validation:
+  - 全量测试：23 files, 139 tests passed
+  - 构建成功
+- Status: ✅ Round 3 发布完成
+
+### [2026-03-11 23:53:10] agent-01-02-round-3-implementation
+- Request/Goal:
+  - 提升预处理结果面板可验收性：命中位置更准确、覆盖项聚焦更直接。
+- Changes:
+  - `src/utils/highlightUtils.ts`
+    - 新增/完善 `normalizeKeyword`、`extractEvidenceKeywordsFromCoverage`、`summarizeCoverage`、`getEvidenceLocationLabel`。
+    - `checkEvidenceMatch` 继续用于 evidence 命中位置判定（original/processed/both/none）。
+  - `src/components/RichTextToShots.tsx`
+    - 接入 `highlightUtils`，高亮分段改用 `generateHighlightSegments`。
+    - 覆盖项命中状态改为 evidence 关键词匹配，不再用整句字符串直接 includes。
+    - 新增覆盖项聚焦信息展示（聚焦 factId）。
+    - 覆盖率统计口径调整为“事实点筛选后集合”，不受“只看缺失项”影响。
+  - `test/components/RichTextToShots.test.tsx`
+    - 更新命中状态断言与聚焦断言，适配新 UI 文案。
+- Implemented:
+  - agent01/02 代码改动已完成，等待 agent03 执行回归验收。
+- Validation:
+  - 待执行组件与关联测试。
+- Next Steps:
+  - 1) 运行 `RichTextToShots` 定向测试；2) 运行 `editorStore` 关联测试；3) 汇总结果。
+- Risks/Notes:
+  - 命中标签基于关键词提取启发式；对于极短 evidence 仍可能出现 `none`，已在 UI 允许该结果。
+
+### [2026-03-11 23:23:20] agent-03-round-3-validation-complete
+- Request/Goal:
+  - 执行 round 3 定向验收，确认“命中位置标签 + 覆盖项聚焦 + util 收敛”无回归。
+- Changes:
+  - `test/utils/highlightUtils.test.ts` 新增工具函数测试（5 cases）。
+  - `test/components/RichTextToShots.test.tsx` 调整交互断言，适配新命中文案与聚焦行为。
+- Implemented:
+  - 回归通过：组件、store、llmService、utils 全部绿灯。
+- Validation:
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/utils/highlightUtils.test.ts` -> 5 passed
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/components/RichTextToShots.test.tsx` -> 2 passed
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/store/editorStore.test.ts` -> 32 passed
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/services/llmService.test.ts` -> 8 passed
+- Next Steps:
+  - 主协调 Agent 可执行 round 3 提交与推送。
+- Risks/Notes:
+  - `llmService` fallback 日志为预期 stderr，不影响通过。
+
+### [2026-03-11 23:23:50] multi-agent-round-3-acceptance
+- Request/Goal: round 3 最终联合验收（agent01/02/03）。
+- Changes:
+  - agent01：`highlightUtils` 能力收敛（关键词归一化/覆盖统计/命中标签映射）。
+  - agent02：`RichTextToShots` 接入 util，覆盖项命中状态展示与聚焦交互增强。
+  - agent03：新增 util 测试并完成回归。
+- Implemented:
+  - 预处理面板从“关键词展示”升级为“可点击覆盖项 + 命中位置语义标签 + 聚焦上下文”。
+- Validation:
+  - 定向测试全部通过（2 + 32 + 8 + 5）。
+- Next Steps:
+  - 可继续下一轮：为 coverage 项增加“跳转到文本首个命中片段”能力。
+- Risks/Notes:
+  - evidence 语义模糊时仍可能显示 `未命中`，属于可解释结果，不阻断流程。
+
+### [2026-03-11 23:23:50] agent-01-round-3-release-start
+- Request/Goal:
+  - 将 round 3（命中标签与覆盖项聚焦增强）提交发布。
+- Changes:
+  - 待提交文件：
+    - `src/components/RichTextToShots.tsx`
+    - `src/utils/highlightUtils.ts`
+    - `test/components/RichTextToShots.test.tsx`
+    - `test/utils/highlightUtils.test.ts`
+    - `.agentstalk`
+- Implemented:
+  - 提交前复核完成，改动范围与 round 3 目标一致。
+- Validation:
+  - `vitest` 定向回归通过（utils + component + store + llmService）。
+- Next Steps:
+  - 执行 git add/commit/push。
+- Risks/Notes:
+  - 当前为定向回归；如需可在下一轮补全量回归。

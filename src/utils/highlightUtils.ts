@@ -109,6 +109,12 @@ export function extractKeywordsFromEvidence(evidence: string): string[] {
   if (positionMatches) {
     keywords.push(...positionMatches);
   }
+
+  // 6. 兜底提取连续词块，避免纯自然语言 evidence 完全无关键词
+  const genericMatches = evidence.match(/[\u4e00-\u9fa5A-Za-z0-9]{2,}/g);
+  if (genericMatches) {
+    keywords.push(...genericMatches);
+  }
   
   // 去重并返回
   return [...new Set(keywords)]
