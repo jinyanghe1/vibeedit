@@ -26,6 +26,9 @@ interface DraftSnapshot {
   appendedFactIds?: string[];
 }
 
+/** F3: 生成前质量门禁阈值（覆盖率低于此值时触发警告） */
+const COVERAGE_GATE_THRESHOLD = 0.6;
+
 function HighlightedText({ text, keywords }: { text: string; keywords?: string[] }) {
   const segments = generateHighlightSegments(text, keywords || []);
   return (
@@ -126,6 +129,11 @@ export function RichTextToShots() {
     );
   }, [selectedFact?.fact, activeCoverageItem?.evidence, evidenceKeywords]);
   const coverageSummary = useMemo(() => summarizeCoverage(factFilteredCoverage), [factFilteredCoverage]);
+  /** F3: 覆盖率门禁——仅在有新鲜预处理且未补齐时触发 */
+  const coverageGateTriggered = hasFreshPreprocess &&
+    coverageSummary.total > 0 &&
+    coverageSummary.keptRatio < COVERAGE_GATE_THRESHOLD &&
+    !(isRepairSnapshotActive || repairedDraftText);
   const visibleCoverageWithMatch = useMemo(
     () =>
       visibleCoverage.map((item) => ({
@@ -679,6 +687,34 @@ export function RichTextToShots() {
       {hasContent && (
         <div className="text-xs text-gray-500">
           字数: {plainText.length} | 预计分镜: {Math.max(1, Math.min(10, Math.ceil(plainText.length / 80)))} 个
+        </div>
+      )}
+
+      {/* F3: 覆盖率门禁警告横幅 */}
+      {coverageGateTriggered && (
+        <div
+          role="alert"
+          aria-label="覆盖率门禁警告"
+          className="bg-amber-500/10 border border-amber-500/30 rounded-lg px-3 py-2.5 space-y-1.5"
+        >
+          <div className="flex items-center gap-2 text-xs text-amber-300 font-medium">
+            <span>⚠️</span>
+            <span>
+              覆盖率门禁：当前覆盖率 {Math.round(coverageSummary.keptRatio * 100)}%，低于阈值 {Math.round(COVERAGE_GATE_THRESHOLD * 100)}%
+            </span>
+          </div>
+          <div className="text-[11px] text-amber-400/80">
+            缺失 {coverageSummary.missingCount} 条事实点，建议先补齐再生成，否则可能导致信息遗漏。
+          </div>
+          {missingFacts.length > 0 && (
+            <button
+              type="button"
+              onClick={handleRepairMissingFacts}
+              className="text-[11px] px-2.5 py-1 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition-colors"
+            >
+              一键补齐缺失项（{missingFacts.length}）— 解除门禁
+            </button>
+          )}
         </div>
       )}
 

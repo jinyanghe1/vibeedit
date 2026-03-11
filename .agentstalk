@@ -2195,3 +2195,25 @@ Date: 2026-03-01
   - 确定性补齐策略：直接拼接缺失事实，无需额外 API 调用
   - 组件已集成补齐功能（由 Agent 02 完成 UI）
   - 支持完整补齐、部分补齐、回退操作
+
+### [2026-03-12 00:10:00] agent-01-round-4-release-complete
+- Agent: Agent 01 (Release)
+- Task: 提交并推送 Round 4 (F1) 变更
+- Changes:
+  - ✅ 提交：`a88fb4a feat: F1 - one-click missing fact repair`
+  - ✅ 推送：main 分支已同步到 origin
+  - 变更内容：
+    - `src/utils/factRepairUtils.ts` - 事实补齐工具库
+    - `test/utils/factRepairUtils.test.ts` - 工具函数测试
+    - `src/components/RichTextToShots.tsx` - UI 集成
+    - `test/components/RichTextToShots.test.tsx` - 组件测试
+    - `.agentstalk` - 协作日志
+- Validation:
+  - 全量测试：25 files, 148 tests passed
+  - 构建成功
+- Status: ✅ Round 4 (F1) 发布完成
+- Feature F1 功能：
+  - 一键补齐缺失事实
+  - 补齐后使用补齐稿生成分镜
+  - 支持回退到原预处理稿
+  - 部分补齐支持
