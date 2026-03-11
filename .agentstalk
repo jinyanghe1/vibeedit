@@ -2217,3 +2217,82 @@ Date: 2026-03-01
   - 补齐后使用补齐稿生成分镜
   - 支持回退到原预处理稿
   - 部分补齐支持
+
+### [2026-03-12 00:45:20] multi-agent-round-6-start-f3-only
+- Request/Goal:
+  - 用户确认继续，进入 F3：生成前质量门禁（Coverage Gate）。
+- Focus Rule:
+  - 单核心压强：本轮只做 F3，不并行 F4 需求。
+- Minimal Scope:
+  - 新增 `启用覆盖率门禁` 开关（默认开启）。
+  - 当覆盖率低于阈值（默认 70%）且存在缺失项时，阻断“智能生成分镜”。
+  - 提供一次性放行按钮：`继续生成（临时忽略门禁）`。
+- Agent Split:
+  - Agent 01：门禁判定逻辑（阈值、阻断条件、一次性放行状态机）。
+  - Agent 02：门禁 UI（警示条、开关、放行按钮）。
+  - Agent 03：review + test-case writing + 回归验收。
+- Acceptance SOP:
+  - 1) 覆盖率低于阈值时点击生成，应被阻断且展示门禁提示。
+  - 2) 点击“继续生成（临时忽略门禁）”后，再点生成应成功。
+  - 3) 成功生成一次后，临时放行应自动失效。
+- Risks/Notes:
+  - 阈值固定在 70%，后续再开放配置项，避免本轮复杂化。
+
+### [2026-03-12 00:41:20] agent-01-round-6-complete
+- Agent: Agent 01 (Logic)
+- Request/Goal:
+  - 实现 F3 覆盖率门禁判定与一次性放行状态机。
+- Changes:
+  - `src/components/RichTextToShots.tsx`
+    - 新增状态：`enableCoverageGate`、`allowCoverageGateBypassOnce`。
+    - 新增阻断逻辑：覆盖率低于 70% 且存在缺失项时阻断生成。
+    - 新增一次性放行逻辑：放行一次后自动失效。
+- Implemented:
+  - 生成链路在低覆盖率场景下默认阻断，需补齐或手动放行。
+- Risks/Notes:
+  - 预处理重新执行时会重置一次性放行状态，避免误放行跨版本数据。
+
+### [2026-03-12 00:43:00] agent-02-round-6-complete
+- Agent: Agent 02 (UI)
+- Request/Goal:
+  - 完成 F3 门禁交互 UI。
+- Changes:
+  - `src/components/RichTextToShots.tsx`
+    - 新增开关：`启用覆盖率门禁（低于70%阻断生成）`。
+    - 门禁告警条增加动作按钮：
+      - `补齐 N 项缺失——解除门禁`
+      - `继续生成（临时忽略门禁）`
+- Implemented:
+  - 用户可清晰看到门禁触发原因并直接执行修复/放行动作。
+- Risks/Notes:
+  - 放行按钮设计为一次性，避免门禁长期失效。
+
+### [2026-03-12 00:45:10] agent-03-round-6-review-and-qa
+- Agent: Agent 03 (Code Review + Test Cases)
+- Review Findings:
+  - 发现并确认：F3 生效后会影响既有自动生成路径测试，已补齐回归用例并修正断言。
+- Test Cases Added/Updated:
+  - `test/components/RichTextToShots.test.tsx`
+    - 新增 `blocks generation when gate triggered and supports one-time bypass`。
+    - 调整既有用例：在非门禁场景主动关闭门禁，避免历史用例语义漂移。
+- Validation:
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/components/RichTextToShots.test.tsx test/utils/factRepairUtils.test.ts`
+    - 2 files, 8 tests, 全部通过。
+  - `npx -y node@20.19.0 node_modules/vitest/vitest.mjs run test/store/editorStore.test.ts test/services/llmService.test.ts`
+    - 2 files, 40 tests, 全部通过。
+- Risks/Notes:
+  - `llmService` fallback stderr 为既有预期日志，不影响结果。
+
+### [2026-03-12 00:46:00] multi-agent-round-6-acceptance-f3
+- Request/Goal:
+  - F3（生成前质量门禁）最终验收。
+- SOP Result:
+  - Step1 覆盖率低于阈值时生成被阻断并给出提示：通过。
+  - Step2 点击“继续生成（临时忽略门禁）”后可生成：通过。
+  - Step3 一次性放行在成功生成后失效，再次生成重新触发门禁：通过。
+- Delivery:
+  - ✅ F3 最小可用版本完成。
+- Next Backlog (not started):
+  - F4 候选：Coverage Gate 与镜头导入联动（低覆盖率禁止“导入全部分镜”）。
+- Risks/Notes:
+  - 严格遵循压强原则：本轮仅交付 F3。

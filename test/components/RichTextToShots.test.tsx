@@ -63,6 +63,7 @@ describe('RichTextToShots Component', () => {
 
     const textarea = screen.getByLabelText('richtext-input');
     await userEvent.type(textarea, '这是原始知识稿件内容');
+    await userEvent.click(screen.getByRole('checkbox', { name: /启用覆盖率门禁/i }));
 
     await userEvent.click(screen.getByRole('button', { name: /智能生成分镜/i }));
 
@@ -167,6 +168,7 @@ describe('RichTextToShots Component', () => {
     await userEvent.click(screen.getByRole('button', { name: /回滚到上一版本/i }));
 
     expect(screen.getByText(/已回滚到 预处理v1/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('checkbox', { name: /启用覆盖率门禁/i }));
 
     await userEvent.click(screen.getByRole('button', { name: /智能生成分镜/i }));
 
@@ -176,5 +178,56 @@ describe('RichTextToShots Component', () => {
 
     const generatedText = vi.mocked(useEditorStore.getState().generateShotsFromRichText).mock.calls[0][0];
     expect(generatedText).toBe('预处理后稿件');
+  });
+
+  it('shows coverage gate warning when below threshold and clears after repair', async () => {
+    render(<RichTextToShots />);
+
+    const textarea = screen.getByLabelText('richtext-input');
+    await userEvent.type(textarea, '原稿件');
+
+    await userEvent.click(screen.getByRole('button', { name: /预处理稿件/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().preprocessRichTextForStoryboard).toHaveBeenCalledTimes(1);
+    });
+
+    // 覆盖率 50% < 70% 阈值 → 门禁触发
+    expect(screen.getByRole('alert', { name: /覆盖率门禁警告/i })).toBeInTheDocument();
+    expect(screen.getByText(/覆盖率门禁：当前覆盖率 50%/)).toBeInTheDocument();
+    expect(screen.getByText(/缺失 1 条事实点/)).toBeInTheDocument();
+
+    // 点击门禁区补齐按钮 → 门禁消失
+    await userEvent.click(screen.getByRole('button', { name: /补齐 1 项缺失/i }));
+
+    expect(screen.queryByRole('alert', { name: /覆盖率门禁警告/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/覆盖率门禁：当前覆盖率/)).not.toBeInTheDocument();
+  });
+
+  it('blocks generation when gate triggered and supports one-time bypass', async () => {
+    render(<RichTextToShots />);
+
+    const textarea = screen.getByLabelText('richtext-input');
+    await userEvent.type(textarea, '原稿件');
+    await userEvent.click(screen.getByRole('button', { name: /预处理稿件/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().preprocessRichTextForStoryboard).toHaveBeenCalledTimes(1);
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /智能生成分镜/i }));
+    expect(useEditorStore.getState().generateShotsFromRichText).not.toHaveBeenCalled();
+    expect(screen.getByText(/覆盖率门禁已触发/)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: /继续生成（临时忽略门禁）/i }));
+    await userEvent.click(screen.getByRole('button', { name: /智能生成分镜/i }));
+
+    await waitFor(() => {
+      expect(useEditorStore.getState().generateShotsFromRichText).toHaveBeenCalledTimes(1);
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: /智能生成分镜/i }));
+    expect(useEditorStore.getState().generateShotsFromRichText).toHaveBeenCalledTimes(1);
+    expect(screen.getByText(/覆盖率门禁已触发/)).toBeInTheDocument();
   });
 });
